@@ -1,0 +1,16 @@
+# Backend Template
+
+This directory contains a backend application scaffold for a demand forecasting platform.
+
+## Structure
+- `app/` — main application package
+- `app/config/` — configuration and environment loading
+- `app/core/` — security, middleware, exceptions
+- `app/api/` — API routers and endpoints
+- `app/modules/` — domain logic and AI modules
+- `app/models/` — database models
+- `app/schemas/` — request/response validation models
+- `app/services/` — shared services
+- `app/tasks/` — background jobs
+- `app/utils/` — helpers and utilities
+- `app/tests/` — basic unit tests
