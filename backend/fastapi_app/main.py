@@ -1,4 +1,4 @@
-from fastapi_app import FastAPI
+from fastapi import FastAPI
 from fastapi_app.api.version1.routes.auth_router import api_router
 from fastapi_app.db.session import init_db
 # Import models so they are registered with SQLAlchemy before init_db()
