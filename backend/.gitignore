@@ -1,3 +1,14 @@
 .env
 venv/
+.venv/
 alembic/__pycache__/
+
+# Python Cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# IDE
+.vscode/
+.idea/
