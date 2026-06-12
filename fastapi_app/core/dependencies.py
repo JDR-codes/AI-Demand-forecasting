@@ -2,7 +2,7 @@ from fastapi_app import Depends, HTTPException, Header, status
 from sqlalchemy.orm import Session
 from fastapi_app.db.session import get_db
 from fastapi_app.models.auth_model import User
-from fastapi_app.modules.auth.auth_service import get_user_by_id
+from fastapi_app.services.auth.auth_service import get_user_by_id
 from fastapi_app.core.security import verify_token
 
 

@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from fastapi_app.db.session import get_db
-from fastapi_app.modules.auth.auth_service import (
+from fastapi_app.services.auth.auth_service import (
     create_super_admin,
     login_user
 )
