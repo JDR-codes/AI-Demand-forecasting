@@ -1,4 +1,5 @@
-from sqlalchemy import Column, Integer, String, Boolean, DateTime
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey
+from sqlalchemy.orm import relationship
 from fastapi_app.db.session import Base
 from datetime import datetime
 
@@ -14,11 +15,13 @@ class User(Base):
 
     password = Column(String(255), nullable=False)
 
-    role = Column(String(50), default="user", nullable=False)
+    role_id = Column(Integer, ForeignKey("roles.id"), nullable=True)
+    role = relationship("Role", back_populates="users", lazy="joined")
 
     is_active = Column(Boolean, default=True, nullable=False)
 
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     def __repr__(self):
+        role_name = self.role.name if self.role else None
         return f"<User(id={self.id}, email={self.email}, role={self.role})>"

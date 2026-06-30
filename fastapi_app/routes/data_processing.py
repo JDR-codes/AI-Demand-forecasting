@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 from fastapi_app.services.data_processing.data_processing_service import (
     series_from_list,
@@ -9,6 +9,9 @@ from fastapi_app.services.data_processing.data_processing_service import (
     handle_missing,
     remove_outliers,
 )
+from fastapi_app.core.dependencies import get_current_user
+from fastapi_app.core.config import DEFAULT_DATASET_PATH, DATA_DIR
+from fastapi_app.models.auth_model import User
 from fastapi_app.services.forecast.forecast_service import train_and_register
 import pandas as pd
 import os
@@ -22,7 +25,7 @@ class ProcessRequest(BaseModel):
 
 
 class CSVProcessRequest(BaseModel):
-    path: str
+    path: str | None = None
     date_column: str | None = None
     value_column: str | None = None
     parse_dates: bool = True
@@ -40,7 +43,7 @@ router = APIRouter(prefix="/api/data_process")
 
 
 @router.post("/series")
-def process_series(req: ProcessRequest):
+def process_series(req: ProcessRequest, current_user: User = Depends(get_current_user)):
     if not req.series:
         raise HTTPException(status_code=400, detail="empty series")
     s = series_from_list(req.series)
@@ -52,10 +55,13 @@ def process_series(req: ProcessRequest):
 
 
 @router.post("/from-csv")
-def process_from_csv(req: CSVProcessRequest):
+def process_from_csv(req: CSVProcessRequest, current_user: User = Depends(get_current_user)):
+    # Determine CSV path automatically if not provided
+    csv_path = req.path if req.path else DEFAULT_DATASET_PATH
+
     # Load CSV
     try:
-        df = load_csv(req.path, date_col=req.date_column, parse_dates=req.parse_dates)
+        df = load_csv(csv_path, date_col=req.date_column, parse_dates=req.parse_dates)
     except FileNotFoundError:
         raise HTTPException(status_code=404, detail="file not found")
     except Exception as exc:
@@ -99,8 +105,9 @@ def process_from_csv(req: CSVProcessRequest):
         series = normalize(series)
 
     # Save processed series
-    os.makedirs("data", exist_ok=True)
-    dest = f"data/processed_{os.path.basename(req.path)}"
+    os.makedirs(DATA_DIR, exist_ok=True)
+    source_name = os.path.basename(csv_path)
+    dest = os.path.join(DATA_DIR, f"processed_{source_name}")
     # Save as CSV with index
     series.to_csv(dest, index=True, header=True)
 

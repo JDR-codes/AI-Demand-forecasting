@@ -1,0 +1,102 @@
+{
+  "auto_arima": [
+    {
+      "path": "D:\\AIDF\\AIDFP_in_userr\\fastapi_app\\model_artifacts\\auto_arima_20260619T090731.pkl",
+      "metadata": {
+        "order": [
+          1,
+          1,
+          1
+        ],
+        "trained_at": "20260619T090731",
+        "type": "arima"
+      }
+    },
+    {
+      "path": "C:\\Users\\kizan\\OneDrive\\Desktop\\AIDFP_in_sec_rec_for_user_2\\AIDFP_in_userr\\fastapi_app\\model_artifacts\\auto_arima_20260621T114134.pkl",
+      "metadata": {
+        "order": [
+          1,
+          1,
+          1
+        ],
+        "trained_at": "20260621T114134",
+        "type": "arima"
+      }
+    },
+    {
+      "path": "C:\\Users\\kizan\\OneDrive\\Desktop\\AIDFP_in_sec_rec_for_user_2\\AIDFP_in_userr\\fastapi_app\\model_artifacts\\auto_arima_20260622T072622.pkl",
+      "metadata": {
+        "order": [
+          1,
+          1,
+          1
+        ],
+        "trained_at": "20260622T072622",
+        "type": "arima"
+      }
+    },
+    {
+      "path": "D:\\AIDF\\AIDFP_22aftn\\fastapi_app\\model_artifacts\\auto_arima_20260622T083003.pkl",
+      "metadata": {
+        "order": [
+          1,
+          1,
+          1
+        ],
+        "trained_at": "20260622T083003",
+        "type": "arima"
+      }
+    }
+  ],
+  "scenario_arima": [
+    {
+      "path": "D:\\AIDF\\AIDFP_in_userr\\fastapi_app\\model_artifacts\\scenario_arima_20260619T124620.pkl",
+      "metadata": {
+        "order": [
+          1,
+          1,
+          1
+        ],
+        "trained_at": "20260619T124620",
+        "type": "arima"
+      }
+    },
+    {
+      "path": "D:\\AIDF\\AIDFP\\fastapi_app\\model_artifacts\\scenario_arima_20260623T090144.pkl",
+      "metadata": {
+        "order": [
+          1,
+          1,
+          1
+        ],
+        "trained_at": "20260623T090144",
+        "type": "arima"
+      }
+    },
+    {
+      "path": "D:\\AIDF\\AIDFP\\fastapi_app\\model_artifacts\\scenario_arima_20260623T090236.pkl",
+      "metadata": {
+        "order": [
+          1,
+          1,
+          1
+        ],
+        "trained_at": "20260623T090236",
+        "type": "arima"
+      }
+    },
+    {
+      "path": "D:\\AIDF\\AIDFP\\fastapi_app\\model_artifacts\\scenario_arima_20260623T090911.pkl",
+      "metadata": {
+        "order": [
+          1,
+          1,
+          1
+        ],
+        "trained_at": "20260623T090911",
+        "type": "arima"
+      }
+    }
+  ]
+}

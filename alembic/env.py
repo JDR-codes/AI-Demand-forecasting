@@ -7,8 +7,8 @@ from alembic import context
 # Import Base
 from fastapi_app.db.session import Base
 
-# Import ALL models here
-from fastapi_app.models.auth_model import User
+import fastapi_app.models
+
 
 config = context.config
 
