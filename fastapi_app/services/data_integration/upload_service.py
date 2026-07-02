@@ -4,18 +4,39 @@ from sqlalchemy.orm import Session
 import pandas as pd
 from fastapi_app.models.upload_model import Upload
 from fastapi_app.services.validation.validation_service import create_validation_error
+from fastapi_app.utils.file_utils import save_uploaded_file,delete_file
 
 
-def create_upload(db: Session, filename: str, file_path: str, uploaded_by: str | None = None) -> Upload:
-    upload = Upload(
+def create_upload(
+    db: Session,
+    filename: str,
+    file_bytes: bytes,
+    uploaded_by: int | None = None,
+    folder: str | None = None,
+) -> Upload:
+    """
+    Save the uploaded file to disk and create a database record.
+    """
+
+    file_info = save_uploaded_file(
+        file_bytes=file_bytes,
         filename=filename,
-        file_path=file_path,
+        folder=folder,
+    )
+
+    upload = Upload(
+        filename=file_info["original_filename"],
+        unique_filename=file_info["filename"],
+        file_path=file_info["file_path"],
+        file_url=file_info["file_url"],
         status="uploaded",
         uploaded_by=uploaded_by,
     )
+
     db.add(upload)
     db.commit()
     db.refresh(upload)
+
     return upload
 
 
@@ -28,13 +49,23 @@ def get_upload(db: Session, upload_id: int) -> Upload | None:
 
 
 def delete_upload(db: Session, upload_id: int) -> bool:
+    """
+    Delete an uploaded file from both the filesystem and the database.
+    """
+
     upload = get_upload(db, upload_id)
-    if not upload:
+
+    if upload is None:
         return False
-    if os.path.exists(upload.file_path):
-        os.remove(upload.file_path)
+
+    # Delete file from disk
+    if upload.file_path:
+        delete_file(upload.file_path)
+
+    # Delete database record
     db.delete(upload)
     db.commit()
+
     return True
 
 

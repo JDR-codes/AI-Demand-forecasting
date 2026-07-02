@@ -42,10 +42,12 @@ def create_super_admin(db: Session, user_data):
 
     super_admin_role = _get_role_by_name(db, "super_admin")
 
+    hashed = hash_password(user_data.password)
     user = User(
         name=user_data.name,
         email=user_data.email,
-        password=hash_password(user_data.password),
+        password=hashed,
+        initial_password_hash=hashed,
         role_id=super_admin_role.id,
         is_active=True
     )
@@ -79,10 +81,12 @@ def create_user(db: Session, user_data):
     role_name = getattr(user_data, "role", None) or "user"
     role = _get_role_by_name(db, role_name)
 
+    hashed = hash_password(user_data.password)
     user = User(
         name=user_data.name,
         email=user_data.email,
-        password=hash_password(user_data.password),
+        password=hashed,
+        initial_password_hash=hashed,
         role_id=role.id,
         is_active=True
     )

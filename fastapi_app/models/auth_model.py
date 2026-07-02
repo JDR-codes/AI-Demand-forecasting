@@ -15,6 +15,9 @@ class User(Base):
 
     password = Column(String(255), nullable=False)
 
+    
+    initial_password_hash = Column(String(255), nullable=True)
+
     role_id = Column(Integer, ForeignKey("roles.id"), nullable=True)
     role = relationship("Role", back_populates="users", lazy="joined")
 

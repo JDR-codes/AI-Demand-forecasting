@@ -28,7 +28,19 @@ from fastapi_app.models.recommendation_model import Recommendation  # noqa: F401
 from fastapi_app.models.inventory_model import InventorySKU, WarehouseInventory, SafetyStockCalculation, ReorderPoint, InventoryTransfer, ExcessStock  # noqa: F401
 from fastapi_app.models.scenario_model import Scenario  # noqa: F401
 
+from fastapi.staticfiles import StaticFiles
+from pathlib import Path
+
 app = FastAPI(title='Demand Forecasting Backend')
+
+MEDIA_ROOT = Path("fastapi_app/media")
+MEDIA_ROOT.mkdir(parents=True, exist_ok=True)
+
+app.mount(
+    "/media",
+    StaticFiles(directory=MEDIA_ROOT),
+    name="media"
+)
 
 # Initialize database on startup
 init_db()

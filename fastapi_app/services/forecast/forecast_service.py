@@ -29,7 +29,7 @@ from fastapi_app.ai.prophet import (
     forecast_prophet as prophet_forecast,
     evaluate_prophet as prophet_evaluate,
 )
-from fastapi_app.core.config import BASE_DIR, DATA_DIR, DEFAULT_DATASET_PATH, REGISTRY_PATH, MODELS_DIR, UPLOADS_DIR
+from fastapi_app.core.config import BASE_DIR, DATA_DIR, DEFAULT_DATASET_PATH, REGISTRY_PATH, MODELS_DIR
 
 
 def _ensure_registry():
@@ -84,26 +84,47 @@ def load_registered_model(path: str):
     return load_model(path)
 
 
-def prepare_series(path: str | None = None, date_col: str = "Date", value_col: str = "Demand", resample_rule: str = "D") -> pd.Series:
-    requested_path = path or DEFAULT_DATASET_PATH
-    dataset_path = requested_path
+def prepare_series(
+    path: str | None = None,
+    date_col: str = "Date",
+    value_col: str = "Demand",
+    resample_rule: str = "D",
+) -> pd.Series:
+
+    dataset_path = path or DEFAULT_DATASET_PATH
 
     if not os.path.isabs(dataset_path):
         candidates = [
             dataset_path,
             os.path.join(BASE_DIR, dataset_path),
             os.path.join(DATA_DIR, dataset_path),
-            os.path.join(UPLOADS_DIR, dataset_path),
         ]
-        dataset_path = next((p for p in candidates if os.path.isfile(p)), requested_path)
+
+        dataset_path = next(
+            (candidate for candidate in candidates if os.path.isfile(candidate)),
+            dataset_path,
+        )
 
     if not os.path.isfile(dataset_path):
-        raise FileNotFoundError(f"Dataset file not found: {requested_path}")
+        raise FileNotFoundError(f"Dataset file not found: {dataset_path}")
 
-    df = pd.read_csv(dataset_path, parse_dates=[date_col])
+    df = pd.read_csv(
+        dataset_path,
+        parse_dates=[date_col],
+    )
+
     df = df.set_index(date_col)
-    series = df[value_col].astype(float).resample(resample_rule).sum()
-    series = series.interpolate().bfill().ffill()
+
+    series = (
+        df[value_col]
+        .astype(float)
+        .resample(resample_rule)
+        .sum()
+        .interpolate()
+        .bfill()
+        .ffill()
+    )
+
     return series
 
 
@@ -194,7 +215,7 @@ def auto_forecast_report(path: str | None = None, forecast_steps: int = 7) -> di
     prophet_report = train_prophet(series)
 
     return {
-        "dataset": path or DEFAULT_DATA_PATH,
+        "dataset": path or DEFAULT_DATASET_PATH,
         "series_length": len(series),
         "arima": {
             "model_path": arima_path,

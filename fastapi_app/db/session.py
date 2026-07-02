@@ -73,6 +73,29 @@ def _ensure_sqlite_forecast_columns():
                 )
             )
 
+        # Ensure users table has the initial_password_hash column (added to
+        # support blocking password resets that reuse the admin-set password).
+        result = conn.execute(text("PRAGMA table_info(users);"))
+        user_columns = {row[1] for row in result.fetchall()}
+
+        if "initial_password_hash" not in user_columns:
+            conn.execute(
+                text(
+                    "ALTER TABLE users ADD COLUMN initial_password_hash VARCHAR(255)"
+                )
+            )
+
+        # Backfill: any user row still missing initial_password_hash (either
+        # just-added column, or a user created before this feature existed)
+        # gets their current password hash copied in as the best available
+        # stand-in for "the password this account was created with".
+        conn.execute(
+            text(
+                "UPDATE users SET initial_password_hash = password "
+                "WHERE initial_password_hash IS NULL"
+            )
+        )
+
 
 def _seed_rbac_defaults():
     """Idempotently seed the default roles and permission catalog.

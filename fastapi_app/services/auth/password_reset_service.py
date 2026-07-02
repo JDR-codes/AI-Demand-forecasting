@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session
 from fastapi_app.models.auth_model import User
 from fastapi_app.models.otp_model import OtpRecord
 from fastapi_app.core.security import hash_password, create_access_token, verify_token
-from fastapi_app.core.email_utils import send_otp_email
+from fastapi_app.utils.email_utils import send_otp_email
 
 # OTP valid for 10 minutes
 OTP_EXPIRY_MINUTES = 10
@@ -159,5 +159,18 @@ def reset_user_password(db: Session, email: str, reset_token: str, new_password:
     if not user:
         raise ValueError("User not found.")
 
-    user.password = hash_password(new_password)
+    new_password_hash = hash_password(new_password)
+
+    # Block reuse of the current password.
+    if user.password == new_password_hash:
+        raise ValueError("New password must be different from your current password.")
+
+    # Block reuse of the password the account was originally created with
+    # (set by the admin, or at self-registration).
+    if user.initial_password_hash and user.initial_password_hash == new_password_hash:
+        raise ValueError(
+            "This is the password your account was created with. Please choose a different password."
+        )
+
+    user.password = new_password_hash
     db.commit()
