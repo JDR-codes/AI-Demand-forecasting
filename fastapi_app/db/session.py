@@ -1,7 +1,15 @@
-﻿from sqlalchemy import create_engine, text
+﻿# fastapi_app/db/session.py
+
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import declarative_base, sessionmaker
 
 from fastapi_app.core.config import DATABASE_URL
+
+
+Base = declarative_base()
+
+from fastapi_app import models 
+
 
 engine = create_engine(
     DATABASE_URL,
@@ -16,14 +24,14 @@ SessionLocal = sessionmaker(
     bind=engine,
 )
 
-Base = declarative_base()
-
 
 def _ensure_sqlite_forecast_columns():
+    """Ensure SQLite tables have required columns."""
     if not DATABASE_URL.startswith("sqlite"):
         return
 
     with engine.connect() as conn:
+        # Check forecasts table
         result = conn.execute(text("PRAGMA table_info(forecasts);"))
         columns = {row[1] for row in result.fetchall()}
 
@@ -48,7 +56,7 @@ def _ensure_sqlite_forecast_columns():
                 )
             )
 
-        # Ensure recommendation table has required timestamp and status columns
+        # Check recommendations table
         result = conn.execute(text("PRAGMA table_info(recommendations);"))
         rec_columns = {row[1] for row in result.fetchall()}
 
@@ -73,8 +81,7 @@ def _ensure_sqlite_forecast_columns():
                 )
             )
 
-        # Ensure users table has the initial_password_hash column (added to
-        # support blocking password resets that reuse the admin-set password).
+        # Check users table
         result = conn.execute(text("PRAGMA table_info(users);"))
         user_columns = {row[1] for row in result.fetchall()}
 
@@ -85,10 +92,7 @@ def _ensure_sqlite_forecast_columns():
                 )
             )
 
-        # Backfill: any user row still missing initial_password_hash (either
-        # just-added column, or a user created before this feature existed)
-        # gets their current password hash copied in as the best available
-        # stand-in for "the password this account was created with".
+        # Backfill: any user row still missing initial_password_hash
         conn.execute(
             text(
                 "UPDATE users SET initial_password_hash = password "
@@ -104,12 +108,9 @@ def _seed_rbac_defaults():
     by unique `name`, so it never duplicates rows or overwrites edits an
     admin made later via the Roles API.
     """
-    from fastapi_app.models.permission_model import Permission
-    from fastapi_app.models.role_model import Role
+    # Import models from the package (or use from fastapi_app.models import Permission, Role)
+    from fastapi_app.models import Permission, Role
 
-    # Fixed catalog of fine-grained permissions covering the app's resource
-    # areas. Permissions themselves are not admin-editable (no POST/PUT/DELETE
-    # in the API) — only which permissions are attached to a Role is editable.
     PERMISSION_CATALOG = [
         ("users:read", "View user accounts"),
         ("users:write", "Create or update user accounts"),
@@ -160,12 +161,14 @@ def _seed_rbac_defaults():
 
 
 def init_db():
+    """Initialize database - create tables and seed default data."""
     Base.metadata.create_all(bind=engine)
     _ensure_sqlite_forecast_columns()
     _seed_rbac_defaults()
 
 
 def get_db():
+    """Dependency for FastAPI to get database session."""
     db = SessionLocal()
     try:
         yield db

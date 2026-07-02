@@ -1,14 +1,18 @@
+# alembic/env.py
+
 from logging.config import fileConfig
 import os
+import sys
+from pathlib import Path
+
+# Add project root to Python path
+sys.path.append(str(Path(__file__).parent.parent))
 
 from sqlalchemy import engine_from_config, pool
 from alembic import context
 
-# Import Base
+# Import Base from session - this will also import all models
 from fastapi_app.db.session import Base
-
-import fastapi_app.models
-
 
 config = context.config
 
@@ -21,11 +25,14 @@ if database_url:
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-# Important for autogenerate
+
 target_metadata = Base.metadata
 
 
+tables = sorted(target_metadata.tables.keys())
+
 def run_migrations_offline() -> None:
+    """Run migrations in 'offline' mode."""
     url = config.get_main_option("sqlalchemy.url")
 
     context.configure(
@@ -34,6 +41,7 @@ def run_migrations_offline() -> None:
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
         compare_type=True,
+        compare_server_default=True,
     )
 
     with context.begin_transaction():
@@ -41,6 +49,7 @@ def run_migrations_offline() -> None:
 
 
 def run_migrations_online() -> None:
+    """Run migrations in 'online' mode."""
     connectable = engine_from_config(
         config.get_section(config.config_ini_section, {}),
         prefix="sqlalchemy.",
@@ -52,6 +61,7 @@ def run_migrations_online() -> None:
             connection=connection,
             target_metadata=target_metadata,
             compare_type=True,
+            compare_server_default=True,
         )
 
         with context.begin_transaction():

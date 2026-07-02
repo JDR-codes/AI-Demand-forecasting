@@ -29,7 +29,7 @@ from fastapi_app.ai.prophet import (
     forecast_prophet as prophet_forecast,
     evaluate_prophet as prophet_evaluate,
 )
-from fastapi_app.core.config import BASE_DIR, DATA_DIR, DEFAULT_DATASET_PATH, REGISTRY_PATH, MODELS_DIR
+from fastapi_app.core.config import BASE_DIR, DATA_DIR, DEFAULT_DATASET_PATH, REGISTRY_PATH, MODELS_DIR, UPLOADS_DIR
 
 
 def _ensure_registry():
@@ -84,47 +84,26 @@ def load_registered_model(path: str):
     return load_model(path)
 
 
-def prepare_series(
-    path: str | None = None,
-    date_col: str = "Date",
-    value_col: str = "Demand",
-    resample_rule: str = "D",
-) -> pd.Series:
-
-    dataset_path = path or DEFAULT_DATASET_PATH
+def prepare_series(path: str | None = None, date_col: str = "Date", value_col: str = "Demand", resample_rule: str = "D") -> pd.Series:
+    requested_path = path or DEFAULT_DATASET_PATH
+    dataset_path = requested_path
 
     if not os.path.isabs(dataset_path):
         candidates = [
             dataset_path,
             os.path.join(BASE_DIR, dataset_path),
             os.path.join(DATA_DIR, dataset_path),
+            os.path.join(UPLOADS_DIR, dataset_path),
         ]
-
-        dataset_path = next(
-            (candidate for candidate in candidates if os.path.isfile(candidate)),
-            dataset_path,
-        )
+        dataset_path = next((p for p in candidates if os.path.isfile(p)), requested_path)
 
     if not os.path.isfile(dataset_path):
-        raise FileNotFoundError(f"Dataset file not found: {dataset_path}")
+        raise FileNotFoundError(f"Dataset file not found: {requested_path}")
 
-    df = pd.read_csv(
-        dataset_path,
-        parse_dates=[date_col],
-    )
-
+    df = pd.read_csv(dataset_path, parse_dates=[date_col])
     df = df.set_index(date_col)
-
-    series = (
-        df[value_col]
-        .astype(float)
-        .resample(resample_rule)
-        .sum()
-        .interpolate()
-        .bfill()
-        .ffill()
-    )
-
+    series = df[value_col].astype(float).resample(resample_rule).sum()
+    series = series.interpolate().bfill().ffill()
     return series
 
 
@@ -204,8 +183,81 @@ def train_prophet(series: Iterable[float], test_frac: float = 0.2) -> dict:
         }
 
 
-def auto_forecast_report(path: str | None = None, forecast_steps: int = 7) -> dict[str, Any]:
+def _normalize_model_type(model_type: str | None) -> str | None:
+    if model_type is None:
+        return None
+
+    normalized = model_type.strip().lower()
+    if normalized in {"", "all", "compare", "default"}:
+        return None
+
+    if normalized not in {"arima", "xgboost", "lstm", "prophet"}:
+        raise ValueError(f"Unsupported model_type: {model_type}")
+
+    return normalized
+
+
+def _build_single_model_report(series: pd.Series, model_type: str, forecast_steps: int) -> dict[str, Any]:
+    if model_type == "arima":
+        model_path = train_and_register(series.tolist(), order=(1, 1, 1), name=f"auto_{model_type}", model_type=model_type)
+        model = load_registered_model(model_path)
+        forecast = arima_forecast(model, forecast_steps)
+        return {
+            "model_type": model_type,
+            "model_path": model_path,
+            "forecast": forecast,
+            "peaks": find_peaks(forecast, top_n=3),
+            "metrics": {
+                "aic": getattr(model, "aic", None),
+                "bic": getattr(model, "bic", None),
+                "hqic": getattr(model, "hqic", None),
+                "sigma2": float(getattr(model, "sigma2", 0.0)),
+            },
+        }
+
+    if model_type == "xgboost":
+        report = train_xgboost(series, n_lags=7)
+        return {
+            "model_type": model_type,
+            "forecast": report["future_predictions"],
+            "metrics": report["metrics"],
+            "peaks": report["peaks"],
+        }
+
+    if model_type == "lstm":
+        report = train_lstm(series, n_lags=7)
+        return {
+            "model_type": model_type,
+            "forecast": report["future_predictions"],
+            "metrics": report["metrics"],
+            "peaks": report["peaks"],
+        }
+
+    report = train_prophet(series)
+    if report.get("error"):
+        raise ValueError(report["error"])
+
+    return {
+        "model_type": model_type,
+        "forecast": report["future_predictions"],
+        "metrics": report["metrics"],
+        "peaks": report["peaks"],
+    }
+
+
+def auto_forecast_report(path: str | None = None, forecast_steps: int = 7, model_type: str | None = None) -> dict[str, Any]:
+    normalized_model_type = _normalize_model_type(model_type)
     series = prepare_series(path)
+
+    if normalized_model_type:
+        return {
+            "dataset": path or DEFAULT_DATASET_PATH,
+            "series_length": len(series),
+            "requested_model": normalized_model_type,
+            "model": _build_single_model_report(series, normalized_model_type, forecast_steps),
+            "registered_models": get_registered_models(),
+        }
+
     arima_path = train_and_register(series.tolist(), order=(1, 1, 1), name="auto_arima", model_type="arima")
     arima_model = load_registered_model(arima_path)
     arima_future = arima_forecast(arima_model, forecast_steps)

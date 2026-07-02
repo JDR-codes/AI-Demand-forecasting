@@ -19,50 +19,78 @@ uvicorn fastapi_app.main:app --reload
 
 Open Swagger at: `http://127.0.0.1:8000/docs`
 
-### 2. Bootstrap the Super Admin (one time only)
+## Module 1 — Authentication (`/api/auth`)
 
-**Endpoint:** `POST /api/v1/auth/super-admin/setup`
+### POST /api/auth/super-admin/setup — Setup Superadmin
+
+**Steps:** Run this first, before anything else. Only works once — the second call with the same email returns a validation error.
 
 **Request Body:**
 ```json
 {
   "name": "Root Admin",
   "email": "admin@example.com",
-  "password": "AdminPass1"
+  "password": "Admin@12345",
+  "role": "super_admin"
 }
 ```
 
-**Expected:** 200 OK with user object
+**Expected 200 OK:**
+```json
+{
+  "id": 1,
+  "name": "Root Admin",
+  "email": "admin@example.com",
+  "role": "super_admin",
+  "is_active": true,
+  "created_at": "2026-07-02T..."
+}
+```
 
-**Note:** If you see 403 "Super admin already exists" — skip this step and proceed to login
+**Expected failure cases:**
+- Missing/invalid email format → `422 Unprocessable Entity`
+- Empty `password` → `422`
 
-### 3. Login and Authorize
+---
 
-**Endpoint:** `POST /api/v1/auth/login`
+### POST /api/auth/login — Login
 
 **Request Body:**
 ```json
 {
   "email": "admin@example.com",
-  "password": "AdminPass1"
+  "password": "Admin@12345"
 }
 ```
 
-**Expected:** 200 OK with `access_token`, `refresh_token`, and user object
+**Expected 200 OK:**
+```json
+{
+  "access_token": "eyJ...",
+  "token_type": "bearer",
+  "user": {
+    "id": 1,
+    "name": "Root Admin",
+    "email": "admin@example.com",
+    "role": "super_admin",
+    "is_active": true,
+    "created_at": "2026-07-02T..."
+  },
+  "refresh_token": "eyJ..."
+}
+```
 
-**Steps:**
-1. Copy the `access_token` value
-2. Click **Authorize 🔒** (top right of Swagger)
-3. Paste the token → Click Authorize
-4. **Note:** Re-authorize every time the token expires (60 minutes by default)
+**Steps:** Copy `access_token` and click **Authorize** in Swagger, paste it as `Bearer <access_token>`. All subsequent endpoints in this guide assume you've done this.
+
+**Expected failure cases:**
+- Wrong password → `401 Unauthorized`
+- Unknown email → `401 Unauthorized`
 
 ---
 
-## Module 1 — Authentication (`/api/v1/auth`)
+### GET /api/auth/me — Get Current User
 
-### GET /api/v1/auth/me — Get Current User
-
-**Steps:** Execute with no body (uses your token)
+**Steps:** Execute with no body (uses your token).
 
 **Expected 200 OK:**
 ```json
@@ -76,20 +104,15 @@ Open Swagger at: `http://127.0.0.1:8000/docs`
 }
 ```
 
-### POST /api/v1/auth/refresh-token — Refresh Access Token
+**Expected failure cases:**
+- No/expired/invalid token → `401 Unauthorized`
 
-**Request Body:**
-```json
-{
-  "refresh_token": "<paste refresh_token from login response>"
-}
-```
+---
 
-**Expected 200 OK:** New `access_token` issued
 
-### POST /api/v1/auth/logout — Logout
+### POST /api/auth/logout — Logout
 
-**Steps:** Execute with no body (uses your token)
+**Steps:** Execute with no body (uses your token).
 
 **Expected 200 OK:**
 ```json
@@ -98,9 +121,30 @@ Open Swagger at: `http://127.0.0.1:8000/docs`
 }
 ```
 
+**Note:** This is a stateless JWT logout — there's no server-side session invalidated. The token technically still works if reused before it expires; the client is responsible for discarding it.
+
+---
+
+### POST /api/auth/refresh-token — Refresh Access Token
+
+**Request Body:**
+```json
+{
+  "refresh_token": "<paste refresh_token from login response>"
+}
+```
+**The main aim of this refresh token was is it will remains the user active for 7 days**
+
+**Expected 200 OK:** New `access_token` (and `refresh_token`) issued, same shape as the Login response.
+
+**Expected failure cases:**
+- Expired or already-used refresh token → `401 Unauthorized`
+
+---
+
 ### Password Reset Flow (3 steps)
 
-#### Step 1 — POST /api/v1/auth/forgot-password
+#### Step 1 — POST /api/auth/forgot-password
 
 **Request Body:**
 ```json
@@ -118,10 +162,15 @@ Open Swagger at: `http://127.0.0.1:8000/docs`
 }
 ```
 
-**Note:** Requires SMTP credentials in `.env`. If not configured, you'll get a 400 with a clear error message.
-For testing without email, check the `otp_records` table in `test.db` directly for the generated OTP code.
+**Note:** Requires SMTP credentials (`SMTP_USER` / `SMTP_PASS`) in `.env`. If not configured, you'll get a `400` with a clear error message.
+For testing without email, check the `otp_records` table in your SQLite DB directly for the generated OTP code:
+```sql
+SELECT * FROM otp_records WHERE email = 'admin@example.com' ORDER BY created_at DESC LIMIT 1;
+```
 
-#### Step 2 — POST /api/v1/auth/verify-otp
+---
+
+#### Step 2 — POST /api/auth/verify-otp
 
 **Request Body:**
 ```json
@@ -140,17 +189,20 @@ For testing without email, check the `otp_records` table in `test.db` directly f
 ```
 
 **Expected failure cases:**
-- Wrong OTP → 400 Bad Request with "Invalid OTP"
-- Expired OTP (after 10 min) → 400 Bad Request with "OTP has expired"
+- Wrong OTP → `400 Bad Request` with "Invalid OTP"
+- Expired OTP (after 10 min) → `400 Bad Request` with "OTP has expired"
 
-#### Step 3 — POST /api/v1/auth/reset-password
+---
+
+#### Step 3 — POST /api/auth/reset-password
 
 **Request Body:**
 ```json
 {
   "email": "admin@example.com",
   "reset_token": "<paste reset_token from step 2>",
-  "new_password": "NewPass123"
+  "new_password": "NewPass@123",
+  "confirm_new_password": "NewPass@123"
 }
 ```
 
@@ -161,131 +213,167 @@ For testing without email, check the `otp_records` table in `test.db` directly f
 }
 ```
 
-**Verify:** Log in again with NewPass123
+**Verify:** Log in again with `NewPass@123`.
 
 **Password validation rules:**
-- Minimum 8 characters → 422 if shorter
-- At least one uppercase letter → 422 if missing
-- At least one digit → 422 if missing
+- Minimum 8 characters → `422` if shorter
+- At least one uppercase letter → `422` if missing
+- At least one digit → `422` if missing
+- `new_password` and `confirm_new_password` must match → `422` if they don't
+
+**Password reuse rules (business logic, not field validation):**
+- New password same as your **current** password → `400 Bad Request`: "New password must be different from your current password."
+- New password same as the password the account was **originally created with** (by admin, or at setup) → `400 Bad Request`: "This is the password your account was created with. Please choose a different password."
+
+**Suggested test sequence to prove the reuse rules work:**
+1. Reset to `NewPass@123` → expect `200`
+2. Immediately try to reset to `NewPass@123` again (same password) → expect `400`
+3. Try to reset to `Admin@12345` (the original super-admin password) → expect `400`
+4. Reset to a genuinely new password, e.g. `AnotherPass@456` → expect `200`
 
 ---
 
-## Module 4 — Roles & Permissions (`/api/v1/roles`, `/api/v1/permissions`)
+## Module 2 — Roles & Permissions (`/api/roles`)
 
-**Note:** All endpoints require `super_admin` token
+### GET /api/roles/permissions — List Permissions
 
-### GET /api/v1/permissions — List All Permissions
+**Steps:** Run this first — you'll need real permission IDs for the Create/Update Role steps below.
 
-**Steps:** Execute with no body
-
-**Expected 200 OK — 14 permissions:**
+**Expected 200 OK:**
 ```json
 [
-  { "id": 1,  "name": "users:read",           "description": "View user accounts" },
-  { "id": 2,  "name": "users:write",          "description": "Create or update user accounts" },
-  { "id": 3,  "name": "users:delete",         "description": "Delete user accounts" },
-  { "id": 4,  "name": "roles:read",           "description": "View roles and their permissions" },
-  { "id": 5,  "name": "roles:write",          "description": "Create or update roles" },
-  { "id": 6,  "name": "roles:delete",         "description": "Delete roles" },
-  { "id": 7,  "name": "data:read",            "description": "View data sources and uploaded datasets" },
-  { "id": 8,  "name": "data:write",           "description": "Upload or modify data sources and datasets" },
-  { "id": 9,  "name": "forecast:read",        "description": "View forecasts and trained models" },
-  { "id": 10, "name": "forecast:run",         "description": "Train models and generate forecasts" },
-  { "id": 11, "name": "recommendations:read", "description": "View generated recommendations" },
-  { "id": 12, "name": "validation:read",      "description": "View data validation results" },
-  { "id": 13, "name": "inventory:read",       "description": "View inventory, stock, and reorder data" },
-  { "id": 14, "name": "inventory:write",      "description": "Modify inventory, transfers, and reorder points" }
+  {
+    "id": 1,
+    "name": "view_forecasts",
+    "description": "Can view demand forecasts"
+  },
+  {
+    "id": 2,
+    "name": "create_forecasts",
+    "description": "Can create new demand forecasts"
+  }
 ]
 ```
 
-**Note:** Save the IDs — you'll need them when creating roles.
+**Note:** Permissions are auto-seeded on startup — this list should never be empty. Note down 2–3 `id` values to use below.
 
-### GET /api/v1/roles — List All Roles
+---
 
-**Expected 200 OK — 2 seeded default roles:**
+### GET /api/roles/roles — List Roles
+
+**Query Parameters:** `skip=0`, `limit=10`
+
+**Steps:** Execute with default or above query params (uses your token).
+
+**Expected 200 OK:**
 ```json
 [
   {
     "id": 1,
     "name": "super_admin",
-    "description": "Full access to every resource in the system.",
-    "created_at": "...",
-    "permissions": [ "...all 14 permissions..." ]
-  },
-  {
-    "id": 2,
-    "name": "user",
-    "description": "Default role for newly created accounts. No elevated permissions.",
-    "created_at": "...",
-    "permissions": []
+    "description": "Full system access",
+    "created_at": "2026-07-02T...",
+    "permissions": [
+      { "id": 1, "name": "view_forecasts", "description": "Can view demand forecasts" }
+    ]
   }
 ]
 ```
 
-### POST /api/v1/roles — Create a Role
+**Expected failure cases:**
+- `limit` above 500 or below 1 → `422`
+- `skip` negative → `422`
+
+---
+
+### POST /api/roles/roles — Create Role Endpoint
 
 **Request Body:**
 ```json
 {
-  "name": "manager",
-  "description": "Access to forecasting and data",
-  "permission_ids": [7, 8, 9, 10]
+  "name": "Forecast Analyst",
+  "description": "Can view and create demand forecasts",
+  "permission_ids": [1, 2]
 }
 ```
+
+**Steps:** Use permission IDs you noted from `GET /api/roles/permissions`.
 
 **Expected 201 Created:**
 ```json
 {
-  "id": 3,
-  "name": "manager",
-  "description": "Access to forecasting and data",
-  "created_at": "...",
+  "id": 2,
+  "name": "Forecast Analyst",
+  "description": "Can view and create demand forecasts",
+  "created_at": "2026-07-02T...",
   "permissions": [
-    { "id": 7,  "name": "data:read",     "description": "..." },
-    { "id": 8,  "name": "data:write",    "description": "..." },
-    { "id": 9,  "name": "forecast:read", "description": "..." },
-    { "id": 10, "name": "forecast:run",  "description": "..." }
+    { "id": 1, "name": "view_forecasts", "description": "Can view demand forecasts" },
+    { "id": 2, "name": "create_forecasts", "description": "Can create new demand forecasts" }
   ]
 }
 ```
 
-**Note:** Save the `id` (e.g., 3) for use in PUT and DELETE tests
+**Expected failure cases:**
+- Duplicate role `name` → `422` (or `400`, depending on how uniqueness is enforced)
+- `permission_ids` containing an ID that doesn't exist → `422`
 
-**Failure cases:**
-- Duplicate name → 409 with "A role with this name already exists"
-- Invalid permission ID (e.g., 999) → 409 with "permission_ids not found: [999]"
-
-### PUT /api/v1/roles/{role_id} — Update a Role
-
-Set `role_id = 3` (the manager role created above)
-
-**Test A — Rename only:**
-```json
-{ "name": "senior_manager" }
-```
-Expected: 200 OK — name updated, permissions unchanged
-
-**Test B — Replace permissions:**
-```json
-{ "permission_ids": [1, 2, 3] }
-```
-Expected: 200 OK — now has only users:read, users:write, users:delete
-
-**Test C — Nonexistent role:**
-Set `role_id = 9999` → 404 Not Found
-
-### DELETE /api/v1/roles/{role_id} — Delete a Role
-
-Set `role_id = 3` → Expected 200 OK:
-```json
-{ "message": "Role deleted successfully" }
-```
-
-**Guard rail tests:**
-- Delete your own role (`role_id = 1`) → 400 Bad Request with "You cannot delete the role currently assigned to your own account."
-- Delete a role that still has users on it → 409 Conflict with user count in message
+**Verify:** Call `GET /api/roles/roles` again and confirm the new role appears with the correct permissions attached.
 
 ---
+
+### PUT /api/roles/roles/{role_id} — Update Role Endpoint
+
+**Path Parameter:** `role_id = 2` (the role you just created)
+
+**Request Body:**
+```json
+{
+  "name": "Senior Forecast Analyst",
+  "description": "Can view, create, and approve demand forecasts",
+  "permission_ids": [1, 2, 3]
+}
+```
+
+**Expected 200 OK:**
+```json
+{
+  "id": 2,
+  "name": "Senior Forecast Analyst",
+  "description": "Can view, create, and approve demand forecasts",
+  "created_at": "2026-07-02T...",
+  "permissions": [
+    { "id": 1, "name": "view_forecasts", "description": "Can view demand forecasts" },
+    { "id": 2, "name": "create_forecasts", "description": "Can create new demand forecasts" },
+    { "id": 3, "name": "approve_forecasts", "description": "..." }
+  ]
+}
+```
+
+**Expected failure cases:**
+- Non-existent `role_id` → `404 Not Found` (or `422`, check your route's error handling)
+- Invalid `permission_ids` → `422`
+
+**Verify:** Call `GET /api/roles/roles` again and confirm the name/permissions changed.
+
+---
+
+### DELETE /api/roles/roles/{role_id} — Delete Role Endpoint
+
+**Path Parameter:** `role_id = 2` (use a test role, **not** `role_id = 1` / `super_admin` — deleting a role that's still assigned to users can break their access)
+
+**Expected 200 OK:**
+```json
+"Role deleted successfully"
+```
+
+**Expected failure cases:**
+- Non-existent `role_id` → `404` (or `422`)
+- Attempting to delete a role still assigned to active users → depends on your implementation; verify whether this is blocked or cascades
+
+**Verify:** Call `GET /api/roles/roles` again and confirm the role no longer appears.
+
+---
+
 
 ## Module 6 — Data Sources (`/api/v1/data-sources`)
 
@@ -511,7 +599,7 @@ Set `role_id = 3` → Expected 200 OK:
 {
   "sku": "SKU-001",
   "region": "North",
-  "warehouse": "WH-A",
+  "warehouse": "WH1",
   "horizon": 7,
   "model_used": "arima"
 }
@@ -816,7 +904,7 @@ This creates 3 SKUs across 3 warehouses in 2 regions. Run all subsequent tests a
   "description": "Forecast with arima and generate recommendations",
   "parameters": {
     "model_type": "arima",
-    "csv_path": "C:\\Users\\kizan\\OneDrive\\Desktop\\AIDFP_final\\AIDFP_updated\\fastapi_app\\uploads\\demand forecasting dataset.csv",
+    "csv_path": "D:\\AIDF\\AIDFP_updated\\fastapi_app\\data\\demand forecasting dataset.csv", -- give the dataset path where you are using in the current project
     "forecast_steps": 7,
     "recommendation_k": 3,
     "sku": "SKU-10",
@@ -880,10 +968,11 @@ This creates 3 SKUs across 3 warehouses in 2 regions. Run all subsequent tests a
   "severity": "warning",
   "category": "inventory",
   "sku": "SKU-001",
-  "warehouse": "WH-A",
+  "warehouse": "WH-01",
   "region": "North"
 }
 ```
+**Note: You have to took the names same as in the inventory safety stocks of SKU and WH and region**
 
 **Severity options:** `info`, `warning`, `critical`
 

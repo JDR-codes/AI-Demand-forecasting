@@ -24,7 +24,7 @@ from fastapi_app.services.forecast.forecast_db_service import (
     ForecastRetrainingService,
 )
 
-router = APIRouter(prefix="/api/forecast", tags=["Forecast Engine"])
+router = APIRouter(prefix="/api/v1/forecast", tags=["Forecast Engine"])
 
 
 # ============= MODEL ENDPOINTS =============
