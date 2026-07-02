@@ -4,7 +4,7 @@ from fastapi_app.core.dependencies import get_current_user
 from fastapi_app.models.auth_model import User
 from fastapi_app.services.forecast.forecast_engine_service import get_forecast_engine_report
 
-router = APIRouter(prefix="/api/v1/forecast-engine", tags=["Forecast Engine"])
+router = APIRouter(prefix="/api/forecast-engine", tags=["Forecast Engine"])
 
 
 @router.get("/report")

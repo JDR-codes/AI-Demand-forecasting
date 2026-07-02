@@ -29,7 +29,7 @@ from fastapi_app.ai.prophet import (
     forecast_prophet as prophet_forecast,
     evaluate_prophet as prophet_evaluate,
 )
-from fastapi_app.core.config import BASE_DIR, DATA_DIR, DEFAULT_DATASET_PATH, REGISTRY_PATH, MODELS_DIR, UPLOADS_DIR
+from fastapi_app.core.config import BASE_DIR, DATA_DIR, DEFAULT_DATASET_PATH, REGISTRY_PATH, MODELS_DIR
 
 
 def _ensure_registry():
@@ -93,9 +93,12 @@ def prepare_series(path: str | None = None, date_col: str = "Date", value_col: s
             dataset_path,
             os.path.join(BASE_DIR, dataset_path),
             os.path.join(DATA_DIR, dataset_path),
-            os.path.join(UPLOADS_DIR, dataset_path),
         ]
-        dataset_path = next((p for p in candidates if os.path.isfile(p)), requested_path)
+    
+        dataset_path = next(
+            (candidate for candidate in candidates if os.path.isfile(candidate)),
+            dataset_path,
+        )
 
     if not os.path.isfile(dataset_path):
         raise FileNotFoundError(f"Dataset file not found: {requested_path}")
