@@ -11,102 +11,215 @@ from typing import List, Optional, Dict, Any
 import json
 import uuid
 
-# Mock registry for model management
-MODEL_REGISTRY: Dict[str, Any] = {}
+from fastapi_app.db.session import SessionLocal
+from fastapi_app.models.model_registry_model import ModelRegistry
+from fastapi_app.models.training_job_model import TrainingJob
 
 
 class ForecastModelService:
-    """Manages forecast model lifecycle"""
+    """Manages forecast model lifecycle (persisted in DB)"""
 
     @staticmethod
     def get_all_models() -> List[Dict[str, Any]]:
-        """Get all registered models"""
-        return list(MODEL_REGISTRY.values())
+        db = SessionLocal()
+        try:
+            rows = db.query(ModelRegistry).order_by(ModelRegistry.created_at.desc()).all()
+            return [
+                {
+                    "id": r.id,
+                    "name": r.name,
+                    "model_type": r.model_type,
+                    "version": r.version,
+                    "status": r.status,
+                    "path": r.path,
+                    "meta_info": r.meta_info,
+                    "created_at": r.created_at.isoformat() if r.created_at else None,
+                }
+                for r in rows
+            ]
+        finally:
+            db.close()
 
     @staticmethod
-    def create_model(name: str, model_type: str, version: str) -> Dict[str, Any]:
-        """Create and register a new model"""
-        model_id = str(uuid.uuid4())
-        model_data = {
-            "id": model_id,
-            "name": name,
-            "model_type": model_type,
-            "version": version,
-            "status": "active",
-            "created_at": datetime.utcnow().isoformat(),
-        }
-        MODEL_REGISTRY[model_id] = model_data
-        return model_data
+    def create_model(name: str, model_type: str, version: str, path: Optional[str] = None, metadata: Optional[dict] = None) -> Dict[str, Any]:
+        db = SessionLocal()
+        try:
+            model = ModelRegistry(name=name, model_type=model_type, version=version, path=path, meta_info=metadata or {}, status="active")
+            db.add(model)
+            db.commit()
+            db.refresh(model)
+            return {
+                "id": model.id,
+                "name": model.name,
+                "model_type": model.model_type,
+                "version": model.version,
+                "status": model.status,
+                "path": model.path,
+                "meta_info": model.meta_info,
+                "created_at": model.created_at.isoformat() if model.created_at else None,
+            }
+        finally:
+            db.close()
 
     @staticmethod
     def update_model(model_id: str, **kwargs) -> Optional[Dict[str, Any]]:
-        """Update an existing model"""
-        if model_id in MODEL_REGISTRY:
-            MODEL_REGISTRY[model_id].update(kwargs)
-            return MODEL_REGISTRY[model_id]
-        return None
+        db = SessionLocal()
+        try:
+            model = db.query(ModelRegistry).filter(ModelRegistry.id == model_id).first()
+            if not model:
+                return None
+            for k, v in kwargs.items():
+                if hasattr(model, k):
+                    setattr(model, k, v)
+            db.commit()
+            db.refresh(model)
+            return {
+                "id": model.id,
+                "name": model.name,
+                "model_type": model.model_type,
+                "version": model.version,
+                "status": model.status,
+                "path": model.path,
+                "meta_info": model.meta_info,
+                "created_at": model.created_at.isoformat() if model.created_at else None,
+            }
+        finally:
+            db.close()
 
     @staticmethod
     def delete_model(model_id: str) -> bool:
-        """Delete a model from registry"""
-        if model_id in MODEL_REGISTRY:
-            del MODEL_REGISTRY[model_id]
+        db = SessionLocal()
+        try:
+            model = db.query(ModelRegistry).filter(ModelRegistry.id == model_id).first()
+            if not model:
+                return False
+            db.delete(model)
+            db.commit()
             return True
-        return False
+        finally:
+            db.close()
 
     @staticmethod
     def get_model(model_id: str) -> Optional[Dict[str, Any]]:
-        """Get a specific model"""
-        return MODEL_REGISTRY.get(model_id)
+        db = SessionLocal()
+        try:
+            model = db.query(ModelRegistry).filter(ModelRegistry.id == model_id).first()
+            if not model:
+                return None
+            return {
+                "id": model.id,
+                "name": model.name,
+                "model_type": model.model_type,
+                "version": model.version,
+                "status": model.status,
+                "path": model.path,
+                "meta_info": model.meta_info,
+                "created_at": model.created_at.isoformat() if model.created_at else None,
+            }
+        finally:
+            db.close()
 
 
 class ForecastTrainingService:
-    """Manages training jobs"""
+    """Manages training jobs persisted in DB"""
 
-    TRAINING_JOBS: Dict[str, Any] = {}
+    MODEL_TYPE_METRICS = {
+        "arima": {
+            "mae": 15.5,
+            "rmse": 22.3,
+            "mape": 8.5,
+            "accuracy": 91.2,
+        },
+        "xgboost": {
+            "mae": 12.8,
+            "rmse": 18.9,
+            "mape": 6.4,
+            "accuracy": 93.1,
+        },
+        "lstm": {
+            "mae": 13.4,
+            "rmse": 19.7,
+            "mape": 6.9,
+            "accuracy": 92.5,
+        },
+        "prophet": {
+            "mae": 14.2,
+            "rmse": 20.8,
+            "mape": 7.3,
+            "accuracy": 91.7,
+        },
+        "retrain": {
+            "mae": 15.5,
+            "rmse": 22.3,
+            "mape": 8.5,
+            "accuracy": 91.2,
+        },
+    }
 
     @staticmethod
-    def start_training_job(model_type: str, csv_path: Optional[str] = None) -> Dict[str, Any]:
-        """Start a new training job"""
-        job_id = str(uuid.uuid4())
-        job_data = {
-            "job_id": job_id,
-            "model_type": model_type,
-            "status": "in_progress",
-            "created_at": datetime.utcnow().isoformat(),
-            "updated_at": datetime.utcnow().isoformat(),
-            "metrics": None,
-        }
-        ForecastTrainingService.TRAINING_JOBS[job_id] = job_data
-        return job_data
+    def start_training_job(model_type: str, csv_path: Optional[str] = None, model_id: Optional[str] = None) -> Dict[str, Any]:
+        """Create a training job row in DB and return its metadata. Actual
+        training should be executed by a worker which updates this row.
+        """
+        db = SessionLocal()
+        try:
+            job = TrainingJob(model_type=model_type, status="queued", model_id=model_id, csv_path=csv_path)
+            db.add(job)
+            db.commit()
+            db.refresh(job)
+            return {
+                "job_id": job.job_id,
+                "model_type": job.model_type,
+                "status": job.status,
+                "created_at": job.created_at.isoformat() if job.created_at else None,
+                "metrics": job.metrics,
+            }
+        finally:
+            db.close()
+
+    @staticmethod
+    def _metrics_for_model_type(model_type: str) -> Dict[str, Any]:
+        return ForecastTrainingService.MODEL_TYPE_METRICS.get(
+            model_type.lower(),
+            ForecastTrainingService.MODEL_TYPE_METRICS["retrain"],
+        ).copy()
 
     @staticmethod
     def get_training_job_status(job_id: str) -> Optional[Dict[str, Any]]:
-        """Get the status of a training job"""
-        job = ForecastTrainingService.TRAINING_JOBS.get(job_id)
-        if job:
-            # Simulate job completion after 5 seconds
-            if (
-                datetime.fromisoformat(job["created_at"]) + timedelta(seconds=5)
-                < datetime.utcnow()
-            ):
-                job["status"] = "completed"
-                job["metrics"] = {
-                    "mae": 15.5,
-                    "rmse": 22.3,
-                    "mape": 8.5,
-                    "accuracy": 91.2,
-                }
-        return job
+        """Get the status of a training job from DB"""
+        db = SessionLocal()
+        try:
+            job = db.query(TrainingJob).filter(TrainingJob.job_id == job_id).first()
+            if not job:
+                return None
+            return {
+                "job_id": job.job_id,
+                "model_type": job.model_type,
+                "status": job.status,
+                "created_at": job.created_at.isoformat() if job.created_at else None,
+                "updated_at": job.updated_at.isoformat() if job.updated_at else None,
+                "completed_at": job.completed_at.isoformat() if job.completed_at else None,
+                "metrics": job.metrics,
+            }
+        finally:
+            db.close()
 
     @staticmethod
     def complete_training_job(job_id: str, metrics: Dict) -> bool:
-        """Mark a training job as complete"""
-        if job_id in ForecastTrainingService.TRAINING_JOBS:
-            ForecastTrainingService.TRAINING_JOBS[job_id]["status"] = "completed"
-            ForecastTrainingService.TRAINING_JOBS[job_id]["metrics"] = metrics
+        """Mark a training job as complete and attach metrics"""
+        db = SessionLocal()
+        try:
+            job = db.query(TrainingJob).filter(TrainingJob.job_id == job_id).first()
+            if not job:
+                return False
+            job.status = "completed"
+            job.metrics = metrics
+            job.completed_at = datetime.utcnow()
+            job.updated_at = datetime.utcnow()
+            db.commit()
             return True
-        return False
+        finally:
+            db.close()
 
 
 class ForecastGenerationService:
@@ -216,7 +329,7 @@ class ForecastRetrainingService:
     @staticmethod
     def retrain_model(db: Session, model_id: str) -> Dict[str, Any]:
         """Retrain a specific model"""
-        job = ForecastTrainingService.start_training_job("retrain")
+        job = ForecastTrainingService.start_training_job("retrain", model_id=model_id)
         return {
             "job_id": job["job_id"],
             "model_id": model_id,
@@ -228,13 +341,18 @@ class ForecastRetrainingService:
     def retrain_all_models(db: Session) -> Dict[str, Any]:
         """Retrain all models"""
         jobs = []
-        for model_id, model_data in MODEL_REGISTRY.items():
-            job = ForecastTrainingService.start_training_job(model_data["model_type"])
-            jobs.append({
-                "job_id": job["job_id"],
-                "model_id": model_id,
-                "model_type": model_data["model_type"],
-            })
+        dbs = SessionLocal()
+        try:
+            models = dbs.query(ModelRegistry).all()
+            for m in models:
+                job = ForecastTrainingService.start_training_job(m.model_type, model_id=m.id)
+                jobs.append({
+                    "job_id": job["job_id"],
+                    "model_id": m.id,
+                    "model_type": m.model_type,
+                })
+        finally:
+            dbs.close()
 
         return {
             "total_jobs": len(jobs),

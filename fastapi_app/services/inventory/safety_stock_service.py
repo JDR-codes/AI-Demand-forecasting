@@ -8,7 +8,6 @@ from fastapi_app.models.inventory_model import (
     WarehouseInventory,
     SafetyStockCalculation,
     ReorderPoint,
-    ExcessStock,
 )
 from fastapi_app.schemas.inventory_schema import SafetyStockDetail
 
@@ -46,12 +45,12 @@ class SafetyStockService:
     ) -> float:
         """
         Calculate safety stock using formula: SS = Z × σ(d) × √L
-        
+
         Args:
             z_score: Service level Z-score
             demand_std_dev: Standard deviation of demand
             lead_time_days: Lead time in days
-        
+
         Returns:
             Safety stock quantity
         """
@@ -86,7 +85,7 @@ class SafetyStockService:
         warehouse_inv = db.query(WarehouseInventory).filter_by(sku=sku, warehouse=warehouse).first()
         region = warehouse_inv.region if warehouse_inv else "Unknown"
 
-        return SafetyStockDetail(
+        detail = SafetyStockDetail(
             sku=sku,
             warehouse=warehouse,
             region=region,
@@ -98,6 +97,33 @@ class SafetyStockService:
             service_level=service_level,
             status=status,
         )
+
+        # Persist this calculation as a history record — each call inserts
+        # a new snapshot row (no update-in-place), matching the
+        # "calculations" naming of the table.
+        if status == "below_target":
+            recommendation = "increase"
+        elif status == "above_target":
+            recommendation = "decrease"
+        else:
+            recommendation = "optimal"
+
+        db.add(
+            SafetyStockCalculation(
+                sku=sku,
+                warehouse=warehouse,
+                service_level=service_level,
+                z_score=z_score,
+                demand_std_dev=demand_std_dev,
+                lead_time_days=lead_time_days,
+                calculated_safety_stock=recommended_safety_stock,
+                current_safety_stock=current_stock,
+                recommendation=recommendation,
+            )
+        )
+        db.commit()
+
+        return detail
 
     @staticmethod
     def batch_calculate_safety_stock(
@@ -113,7 +139,7 @@ class SafetyStockService:
                 z_score = SafetyStockService.calculate_z_score(service_level)
                 # Mock demand_std_dev - in production, calculate from historical data
                 demand_std_dev = warehouse_record.current_stock * 0.15  # 15% of current stock
-                
+
                 detail = SafetyStockService.get_safety_stock_for_sku(
                     db,
                     sku,

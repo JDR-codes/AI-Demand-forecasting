@@ -17,7 +17,7 @@ class ReportGenerateRequest(BaseModel):
     parameters: Optional[Dict[str, Any]] = Field(
         default=None,
         description=(
-            "Optional filters. E.g. {\"sku\": \"SKU-001\", \"warehouse\": \"WH-A\", "
+            "Optional filters. E.g. {\"sku\": \"SKU-001\", \"warehouse\": \"WH-01\", "
             "\"limit\": 50}"
         ),
     )

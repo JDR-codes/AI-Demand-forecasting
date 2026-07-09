@@ -15,6 +15,8 @@ class SuperAdminCreate(BaseModel):
     email: EmailStr
     password: str
     role: str = "super_admin"
+
+
  
  
 class UserOut(BaseModel):

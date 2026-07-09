@@ -23,6 +23,7 @@ from fastapi_app.services.forecast.forecast_db_service import (
     ForecastMetricsService,
     ForecastRetrainingService,
 )
+from fastapi_app.services.forecast.forecast_service import auto_forecast_report
 
 router = APIRouter(prefix="/api/forecast", tags=["Forecast Engine"])
 
@@ -102,25 +103,77 @@ def get_training_status(
 
 # ============= FORECAST GENERATION ENDPOINTS =============
 
-@router.post("/generate", response_model=ForecastResponse)
+@router.post("/generate", response_model=List[ForecastResponse])
 def generate_forecast(
     forecast_request: GenerateForecastRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Generate a new forecast - Tab: Forecast"""
-    forecast_data = ForecastCreate(
-        model_id=forecast_request.model_id,
-        sku=forecast_request.sku,
-        region=forecast_request.region,
-        warehouse=forecast_request.warehouse,
-        horizon=forecast_request.horizon,
-        predicted_demand=0.0,  # Placeholder
-        confidence_score=0.85,
-        model_used="ensemble",
-    )
-    forecast = ForecastGenerationService.generate_forecast(db, forecast_data)
-    return forecast
+    """Generate a new forecast - Tab: Forecast
+
+    If `csv_path` is provided in the request body, run the forecasting
+    pipeline immediately on that CSV and persist the resulting forecasts
+    (one per model). Returns the persisted forecast rows.
+    """
+    # Require csv_path to run immediate processing
+    if not forecast_request.csv_path:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                "Provide `csv_path` in the request to run immediate processing, "
+                "or upload a CSV to media/uploads/csv for real-time processing."
+            ),
+        )
+
+    # Run the auto report
+    try:
+        report = auto_forecast_report(path=forecast_request.csv_path, forecast_steps=forecast_request.horizon)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Processing failed: {str(exc)}")
+
+    models_to_persist = {}
+    for m in ("arima", "xgboost", "lstm", "prophet"):
+        if m in report:
+            models_to_persist[m] = report[m]
+
+    if not models_to_persist and "model" in report:
+        models_to_persist[report.get("requested_model", "auto")] = report["model"]
+
+    persisted = []
+    for model_name, model_report in models_to_persist.items():
+        predicted = 0.0
+        try:
+            if isinstance(model_report, dict) and "forecast" in model_report:
+                f = model_report["forecast"]
+            elif isinstance(model_report, dict) and "future_predictions" in model_report:
+                f = model_report["future_predictions"]
+            else:
+                f = model_report
+
+            if hasattr(f, "__len__") and len(f) > 0:
+                predicted = float(f[0])
+            else:
+                predicted = float(f)
+        except Exception:
+            predicted = 0.0
+
+        forecast_data = ForecastCreate(
+            model_id=forecast_request.model_id if forecast_request.model_id else None,
+            sku=forecast_request.sku,
+            region=forecast_request.region,
+            warehouse=forecast_request.warehouse,
+            horizon=forecast_request.horizon,
+            predicted_demand=predicted,
+            confidence_score=0.8,
+            model_used=model_name,
+        )
+
+        created = ForecastGenerationService.generate_forecast(db, forecast_data)
+        persisted.append(created)
+
+    return persisted
 
 
 @router.get("/results", response_model=List[ForecastResponse])

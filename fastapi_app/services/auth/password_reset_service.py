@@ -19,8 +19,9 @@ from fastapi_app.models.otp_model import OtpRecord
 from fastapi_app.core.security import hash_password, create_access_token, verify_token
 from fastapi_app.utils.email_utils import send_otp_email
 
-# OTP valid for 10 minutes
-OTP_EXPIRY_MINUTES = 10
+# OTP valid for 5 minutes (per security standard — applies to both
+# registration and password-reset OTPs)
+OTP_EXPIRY_MINUTES = 5
 
 # Reset token valid for 15 minutes (issued after OTP is verified)
 RESET_TOKEN_EXPIRY_MINUTES = 15
@@ -53,9 +54,10 @@ def request_password_reset_otp(db: Session, email: str) -> dict:
     if not user:
         return generic_response
 
-    # Invalidate any previous unused OTPs for this email
+    # Invalidate any previous unused password-reset OTPs for this email
     db.query(OtpRecord).filter(
         OtpRecord.user_email == email,
+        OtpRecord.purpose == "password_reset",
         OtpRecord.is_used == False,
     ).update({"is_used": True})
     db.commit()
@@ -66,6 +68,7 @@ def request_password_reset_otp(db: Session, email: str) -> dict:
     otp_record = OtpRecord(
         otp_code=otp_code,
         user_email=email,
+        purpose="password_reset",
         is_used=False,
         expires_at=expires_at,
     )
@@ -101,6 +104,7 @@ def verify_reset_otp(db: Session, email: str, otp_code: str) -> str:
         .filter(
             OtpRecord.user_email == email,
             OtpRecord.otp_code == otp_code,
+            OtpRecord.purpose == "password_reset",
             OtpRecord.is_used == False,
         )
         .order_by(OtpRecord.created_at.desc())

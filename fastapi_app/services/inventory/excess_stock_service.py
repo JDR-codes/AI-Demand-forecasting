@@ -1,7 +1,7 @@
 from typing import List, Tuple
 from sqlalchemy.orm import Session
 
-from fastapi_app.models.inventory_model import WarehouseInventory
+from fastapi_app.models.inventory_model import WarehouseInventory, ExcessStock
 from fastapi_app.schemas.inventory_schema import ExcessStockDetail
 
 
@@ -71,7 +71,7 @@ class ExcessStockService:
     ) -> Tuple[List[ExcessStockDetail], float, float, float]:
         """
         Identify all excess stock in the network.
-        
+
         Returns:
             Tuple of (excess_items, total_excess_qty, total_carrying_cost, total_potential_savings)
         """
@@ -143,5 +143,47 @@ class ExcessStockService:
             total_excess_quantity += excess_quantity
             total_carrying_cost += total_carrying_cost_item
             total_potential_savings += potential_savings
+
+            # Persist this result — update the existing row for this
+            # sku+warehouse if one exists, otherwise insert a new one.
+            existing_row = (
+                db.query(ExcessStock)
+                .filter_by(sku=warehouse_inv.sku, warehouse=warehouse_inv.warehouse)
+                .first()
+            )
+            if existing_row:
+                existing_row.region = warehouse_inv.region
+                existing_row.current_stock = warehouse_inv.current_stock
+                existing_row.forecasted_demand_30days = forecasted_demand_30days
+                existing_row.excess_quantity = excess_quantity
+                existing_row.days_inventory_on_hand = days_inventory_on_hand
+                existing_row.excess_level = excess_level
+                existing_row.carrying_cost_per_unit_yearly = carrying_cost_per_unit_yearly
+                existing_row.total_carrying_cost = total_carrying_cost_item
+                existing_row.action_recommended = action
+                existing_row.estimated_liquidation_value = estimated_liquidation_value
+                existing_row.potential_savings = potential_savings
+                existing_row.storage_risk_score = storage_risk_score
+            else:
+                db.add(
+                    ExcessStock(
+                        sku=warehouse_inv.sku,
+                        warehouse=warehouse_inv.warehouse,
+                        region=warehouse_inv.region,
+                        current_stock=warehouse_inv.current_stock,
+                        forecasted_demand_30days=forecasted_demand_30days,
+                        excess_quantity=excess_quantity,
+                        days_inventory_on_hand=days_inventory_on_hand,
+                        excess_level=excess_level,
+                        carrying_cost_per_unit_yearly=carrying_cost_per_unit_yearly,
+                        total_carrying_cost=total_carrying_cost_item,
+                        action_recommended=action,
+                        estimated_liquidation_value=estimated_liquidation_value,
+                        potential_savings=potential_savings,
+                        storage_risk_score=storage_risk_score,
+                    )
+                )
+
+        db.commit()
 
         return excess_items, total_excess_quantity, total_carrying_cost, total_potential_savings

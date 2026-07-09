@@ -375,11 +375,11 @@ SELECT * FROM otp_records WHERE email = 'admin@example.com' ORDER BY created_at 
 ---
 
 
-## Module 6 — Data Sources (`/api/v1/data-sources`)
+## Module 6 — Data Sources (`/api/data-sources`)
 
 **Requires:** Login (any role)
 
-### POST /api/v1/data-sources/ — Create Data Source
+### POST /api/data-sources/ — Create Data Source
 
 **Request Body:**
 ```json
@@ -394,17 +394,17 @@ SELECT * FROM otp_records WHERE email = 'admin@example.com' ORDER BY created_at 
 
 **Note:** Save the `id` returned — use it for all subsequent data source tests
 
-### GET /api/v1/data-sources/ — List All Data Sources
+### GET /api/data-sources/ — List All Data Sources
 
 **Expected 200 OK:** Array of data source objects
 
-### GET /api/v1/data-sources/{data_source_id} — Get One
+### GET /api/data-sources/{data_source_id} — Get One
 
 **Expected 200 OK:** Single data source object
 
 **Nonexistent ID → 404 Not Found**
 
-### PUT /api/v1/data-sources/{data_source_id} — Update
+### PUT /api/data-sources/{data_source_id} — Update
 
 **Request Body:**
 ```json
@@ -416,23 +416,23 @@ SELECT * FROM otp_records WHERE email = 'admin@example.com' ORDER BY created_at 
 
 **Expected 200 OK** with updated fields
 
-### POST /api/v1/data-sources/{data_source_id}/sync — Trigger Sync
+### POST /api/data-sources/{data_source_id}/sync — Trigger Sync
 
 **Expected 200 OK** — `last_sync` timestamp updated
 
-### POST /api/v1/data-sources/{data_source_id}/schedule-sync — Schedule Sync
+### POST /api/data-sources/{data_source_id}/schedule-sync — Schedule Sync
 
 **Expected 200 OK** — sync scheduled
 
-### GET /api/v1/data-sources/{data_source_id}/health — Health Check
+### GET /api/data-sources/{data_source_id}/health — Health Check
 
 **Expected 200 OK** — health status object
 
-### GET /api/v1/data-sources/{data_source_id}/logs — View Logs
+### GET /api/data-sources/{data_source_id}/logs — View Logs
 
 **Expected 200 OK** — array of log entries
 
-### DELETE /api/v1/data-sources/{data_source_id} — Delete
+### DELETE /api/data-sources/{data_source_id} — Delete
 
 **Expected 200 OK:**
 ```json
@@ -441,9 +441,9 @@ SELECT * FROM otp_records WHERE email = 'admin@example.com' ORDER BY created_at 
 
 ---
 
-## Module 7 — File Uploads (`/api/v1/uploads`)
+## Module 7 — File Uploads (`/api/uploads`)
 
-### POST /api/v1/uploads/file — Upload a CSV
+### POST /api/uploads/file — Upload a CSV
 
 **Steps:**
 1. Expand the endpoint in Swagger
@@ -465,21 +465,21 @@ SELECT * FROM otp_records WHERE email = 'admin@example.com' ORDER BY created_at 
 
 **Failure:** Uploading a non-CSV file → 400 Bad Request with "Only CSV files are accepted"
 
-### GET /api/v1/uploads/ — List All Uploads
+### GET /api/uploads/ — List All Uploads
 
 **Expected 200 OK:** Array of upload records
 
-### GET /api/v1/uploads/{upload_id} — Get One Upload
+### GET /api/uploads/{upload_id} — Get One Upload
 
 **Expected 200 OK:** Single upload record
 
 **Nonexistent ID → 404 Not Found**
 
-### POST /api/v1/uploads/{upload_id}/process — Process Upload
+### POST /api/uploads/{upload_id}/process — Process Upload
 
 **Expected 200 OK** — status changes to `processed`
 
-### DELETE /api/v1/uploads/{upload_id} — Delete Upload
+### DELETE /api/uploads/{upload_id} — Delete Upload
 
 **Expected 200 OK:**
 ```json
@@ -488,41 +488,41 @@ SELECT * FROM otp_records WHERE email = 'admin@example.com' ORDER BY created_at 
 
 ---
 
-## Module 8 — Data Processing (`/api/v1/processing`)
+## Module 8 — Data Processing (`/api/processing`)
 
-### POST /api/v1/processing/start — Start Pipeline
+### POST /api/processing/start — Start Pipeline
 
 **Steps:** Execute with no body
 
 **Expected 200 OK** — pipeline started response
 
-### GET /api/v1/processing/pipeline — Pipeline Status
+### GET /api/processing/pipeline — Pipeline Status
 
 **Expected 200 OK** — pipeline status and stage info
 
-### GET /api/v1/processing/outliers — Detect Outliers
+### GET /api/processing/outliers — Detect Outliers
 
 **Expected 200 OK** — list of detected outliers
 
-### GET /api/v1/processing/features — Feature Engineering
+### GET /api/processing/features — Feature Engineering
 
 **Expected 200 OK** — feature list
 
-### GET /api/v1/processing/logs — Processing Logs
+### GET /api/processing/logs — Processing Logs
 
 **Expected 200 OK** — array of log entries
 
-### POST /api/v1/processing/stop — Stop Pipeline
+### POST /api/processing/stop — Stop Pipeline
 
 **Expected 200 OK** — pipeline stopped
 
 ---
 
-## Module 9 — Forecast Engine (`/api/v1/forecast`)
+## Module 9 — Forecast Engine (`/api/forecast`)
 
 **Note:** This module requires a dataset uploaded first (Module 7). The CSV must have `Date` and `Demand` columns.
 
-### POST /api/v1/forecast/models — Register a Model
+### POST /api/forecast/models — Register a Model
 
 **Request Body:**
 ```json
@@ -537,11 +537,11 @@ SELECT * FROM otp_records WHERE email = 'admin@example.com' ORDER BY created_at 
 
 **Note:** Save the `model_id` for subsequent tests
 
-### GET /api/v1/forecast/models — List All Models
+### GET /api/forecast/models — List All Models
 
 **Expected 200 OK:** Array of registered model objects
 
-### PUT /api/v1/forecast/models/{model_id} — Update Model
+### PUT /api/forecast/models/{model_id} — Update Model
 
 **Request Body:**
 ```json
@@ -556,7 +556,7 @@ SELECT * FROM otp_records WHERE email = 'admin@example.com' ORDER BY created_at 
 
 **Nonexistent ID → 404 Not Found**
 
-### POST /api/v1/forecast/train — Train a Model
+### POST /api/forecast/train — Train a Model
 
 **Request Body:**
 ```json
@@ -588,11 +588,11 @@ SELECT * FROM otp_records WHERE email = 'admin@example.com' ORDER BY created_at 
 
 **Note:** Save the `job_id` returned
 
-### GET /api/v1/forecast/train/{job_id} — Check Training Job Status
+### GET /api/forecast/train/{job_id} — Check Training Job Status
 
 **Expected 200 OK** — job details including status and metrics
 
-### POST /api/v1/forecast/generate — Generate a Forecast
+### POST /api/forecast/generate — Generate a Forecast
 
 **Request Body:**
 ```json
@@ -601,59 +601,53 @@ SELECT * FROM otp_records WHERE email = 'admin@example.com' ORDER BY created_at 
   "region": "North",
   "warehouse": "WH1",
   "horizon": 7,
-  "model_used": "arima"
+  "csv_path": "fastapi_app/data/demand forecasting dataset.csv"
 }
 ```
 
-**Expected 200 OK** — forecast record with `predicted_demand` and `confidence_score`
+**Expected 200 OK** — one or more forecast records with `predicted_demand`, `confidence_score`, and `model_used`
 
-**Note:** Save the `id` returned
+**Note:** `csv_path` is required for immediate processing; this endpoint persists forecasts for all supported models found in the CSV.
 
-### GET /api/v1/forecast/results — List All Forecasts
+### GET /api/forecast/results — List All Forecasts
 
 **Expected 200 OK:** Array of forecast records
 
-### GET /api/v1/forecast/results/{forecast_id} — Get One Forecast
+### GET /api/forecast/results/{forecast_id} — Get One Forecast
 
 **Expected 200 OK:** Single forecast record
 
 **Nonexistent ID → 404 Not Found**
 
-### GET /api/v1/forecast/metrics — Get All Model Metrics
+### GET /api/forecast/metrics — Get All Model Metrics
 
 **Expected 200 OK** — metrics for all trained models
 
-### GET /api/v1/forecast/metrics/{model_type} — Get Metrics by Model Type
+### GET /api/forecast/metrics/{model_type} — Get Metrics by Model Type
 
 Set `model_type` to `arima`, `xgboost`, `lstm`, or `prophet`
 
 **Expected 200 OK** — metrics for that specific model type
 
-### POST /api/v1/forecast/retrain — Retrain a Specific Model
+### POST /api/forecast/retrain — Retrain a Specific Model
 
-**Request Body:**
-```json
-{
-  "model_type": "arima",
-  "csv_path": "fastapi_app/data/demand forecasting dataset.csv",
-  "steps": 7,
-  "order": [1, 1, 1]
-}
-```
+**Query Parameter:** `model_id=<your-model-id>`
 
-**Expected 200 OK** — new training job initiated
+**Example URL:** `/api/forecast/retrain?model_id=123e4567-e89b-12d3-a456-426614174000`
 
-### POST /api/v1/forecast/retrain-all — Retrain All Models
+**Expected 200 OK** — new retraining job initiated for the specified model
+
+### POST /api/forecast/retrain-all — Retrain All Models
 
 **Steps:** Execute with no body
 
 **Expected 200 OK** — all models retrained
 
-### POST /api/v1/forecast/retrain/{job_id} — Check Retrain Job
+### POST /api/forecast/retrain/{job_id} — Check Retrain Job
 
 **Expected 200 OK** — retrain job status
 
-### DELETE /api/v1/forecast/models/{model_id} — Delete Model
+### DELETE /api/forecast/models/{model_id} — Delete Model
 
 **Expected 200 OK:**
 ```json
@@ -662,9 +656,9 @@ Set `model_type` to `arima`, `xgboost`, `lstm`, or `prophet`
 
 ---
 
-## Module 9b — Forecast Engine Report (`/api/v1/forecast-engine`)
+## Module 9b — Forecast Engine Report (`/api/forecast-engine`)
 
-### GET /api/v1/forecast-engine/report — Run Full AI Forecast Report
+### GET /api/forecast-engine/report — Run Full AI Forecast Report
 
 **Parameters:**
 - `path`: Full absolute path to your CSV file (e.g., `C:\Users\kizan\...\demand forecasting dataset.csv`)
@@ -703,56 +697,50 @@ Set `model_type` to `arima`, `xgboost`, `lstm`, or `prophet`
 
 ---
 
-## Module 10 — Recommendations (`/api/v1/recommendations`)
+## Module 10 — Recommendations (`/api/recommendations`)
 
-### POST /api/v1/recommendations — Create a Recommendation
+### POST /api/recommendations — Create a Recommendation
 
 **Request Body:**
 ```json
 {
   "sku": "SKU-001",
-  "warehouse": "WH-A",
-  "region": "North",
   "recommendation_type": "reorder",
   "priority": "high",
-  "title": "Reorder SKU-001",
-  "description": "Stock will reach reorder point in 3 days",
-  "recommended_action": "Place order for 500 units",
-  "quantity": 500,
-  "estimated_cost": 25000.0,
-  "potential_savings": 3500.0
+  "suggested_action": "Place order for 500 units",
+  "quantity": 500
 }
 ```
 
 **Expected 200 OK** with `id` and `status: "pending"`
 
-### GET /api/v1/recommendations — List All
+### GET /api/recommendations — List All
 
 **Expected 200 OK:** Array of recommendation objects
 
-### GET /api/v1/recommendations/critical — Critical Recommendations
+### GET /api/recommendations/critical — Critical Recommendations
 
 **Expected 200 OK** — only critical-priority items
 
-### GET /api/v1/recommendations/high — High Priority
+### GET /api/recommendations/high — High Priority
 
 **Expected 200 OK** — only high-priority items
 
-### GET /api/v1/recommendations/reorder — Reorder Recommendations
+### GET /api/recommendations/reorder — Reorder Recommendations
 
 **Expected 200 OK** — only reorder-type items
 
-### GET /api/v1/recommendations/procurement — Procurement Recommendations
+### GET /api/recommendations/procurement — Procurement Recommendations
 
 **Expected 200 OK** — only procurement-type items
 
-### GET /api/v1/recommendations/{recommendation_id} — Get One
+### GET /api/recommendations/{recommendation_id} — Get One
 
 **Expected 200 OK** — single recommendation
 
 **Nonexistent ID → 404 Not Found**
 
-### PUT /api/v1/recommendations/{recommendation_id} — Update
+### PUT /api/recommendations/{recommendation_id} — Update
 
 **Request Body:**
 ```json
@@ -764,15 +752,15 @@ Set `model_type` to `arima`, `xgboost`, `lstm`, or `prophet`
 
 **Expected 200 OK** — updated recommendation
 
-### POST /api/v1/recommendations/{recommendation_id}/execute — Execute
+### POST /api/recommendations/{recommendation_id}/execute — Execute
 
 **Expected 200 OK** — status changes to `executed`
 
-### POST /api/v1/recommendations/{recommendation_id}/ignore — Ignore
+### POST /api/recommendations/{recommendation_id}/ignore — Ignore
 
 **Expected 200 OK** — status changes to `ignored`
 
-### POST /api/v1/recommendations/execute-all — Execute All
+### POST /api/recommendations/execute-all — Execute All
 
 **Expected 200 OK:**
 ```json
@@ -782,7 +770,7 @@ Set `model_type` to `arima`, `xgboost`, `lstm`, or `prophet`
 }
 ```
 
-### POST /api/v1/recommendations/ignore-all — Ignore All
+### POST /api/recommendations/ignore-all — Ignore All
 
 **Expected 200 OK:**
 ```json
@@ -792,11 +780,11 @@ Set `model_type` to `arima`, `xgboost`, `lstm`, or `prophet`
 }
 ```
 
-### GET /api/v1/recommendations/stats/overview — Stats Overview
+### GET /api/recommendations/stats/overview — Stats Overview
 
 **Expected 200 OK** — counts by status and priority
 
-### DELETE /api/v1/recommendations/{recommendation_id} — Delete
+### DELETE /api/recommendations/{recommendation_id} — Delete
 
 **Expected 200 OK:**
 ```json
@@ -805,11 +793,11 @@ Set `model_type` to `arima`, `xgboost`, `lstm`, or `prophet`
 
 ---
 
-## Module 11 — Inventory Optimization (`/api/v1/inventory`)
+## Module 11 — Inventory Optimization (`/api/inventory`)
 
 **Important:** Seed sample data first — otherwise all GET endpoints return empty results.
 
-### POST /api/v1/inventory/seed-sample-data — Seed Test Data
+### POST /api/inventory/seed-sample-data — Seed Test Data
 
 **Steps:** Execute with no body
 
@@ -824,7 +812,7 @@ Set `model_type` to `arima`, `xgboost`, `lstm`, or `prophet`
 
 This creates 3 SKUs across 3 warehouses in 2 regions. Run all subsequent tests after this.
 
-### GET /api/v1/inventory/health — Overall Inventory Health
+### GET /api/inventory/health — Overall Inventory Health
 
 **Expected 200 OK:**
 ```json
@@ -843,7 +831,7 @@ This creates 3 SKUs across 3 warehouses in 2 regions. Run all subsequent tests a
 }
 ```
 
-### GET /api/v1/inventory/safety-stock — Safety Stock Analysis
+### GET /api/inventory/safety-stock — Safety Stock Analysis
 
 **Query param:** `service_level` — valid values: `90`, `95`, `97`, `99`, `99.9` (default `95`)
 
@@ -851,7 +839,7 @@ This creates 3 SKUs across 3 warehouses in 2 regions. Run all subsequent tests a
 
 **Failure:** Invalid service level (e.g., 85) → 400 Bad Request
 
-### GET /api/v1/inventory/reorder-points — Reorder Points
+### GET /api/inventory/reorder-points — Reorder Points
 
 **Expected 200 OK** — each SKU/warehouse shows:
 - `reorder_point_value`
@@ -859,7 +847,7 @@ This creates 3 SKUs across 3 warehouses in 2 regions. Run all subsequent tests a
 - `days_until_stockout`
 - `economic_order_quantity`
 
-### GET /api/v1/inventory/transfers — Transfer Recommendations
+### GET /api/inventory/transfers — Transfer Recommendations
 
 **Expected 200 OK** — recommended stock moves between warehouses with:
 - `from_warehouse` / `to_warehouse`
@@ -869,7 +857,7 @@ This creates 3 SKUs across 3 warehouses in 2 regions. Run all subsequent tests a
 - `roi_percentage`
 - `priority`: `high`, `medium`, or `low`
 
-### GET /api/v1/inventory/excess-stock — Excess Stock Analysis
+### GET /api/inventory/excess-stock — Excess Stock Analysis
 
 **Expected 200 OK** — items with too much stock showing:
 - `excess_quantity`
@@ -880,9 +868,9 @@ This creates 3 SKUs across 3 warehouses in 2 regions. Run all subsequent tests a
 
 ---
 
-## Module 12 — Scenario Simulation (`/api/v1/scenarios`)
+## Module 12 — Scenario Simulation (`/api/scenarios`)
 
-### POST /api/v1/scenarios — Create a Scenario
+### POST /api/scenarios — Create a Scenario
 
 **Request Body — Test A:**
 ```json
@@ -916,17 +904,17 @@ This creates 3 SKUs across 3 warehouses in 2 regions. Run all subsequent tests a
 
 **Expected 200 OK** with `id` and `status: "created"`
 
-### GET /api/v1/scenarios — List All Scenarios
+### GET /api/scenarios — List All Scenarios
 
 **Expected 200 OK:** Array of scenario objects
 
-### GET /api/v1/scenarios/{scenario_id} — Get One
+### GET /api/scenarios/{scenario_id} — Get One
 
 **Expected 200 OK:** Single scenario
 
 **Nonexistent ID → 404 Not Found**
 
-### PUT /api/v1/scenarios/{scenario_id} — Update
+### PUT /api/scenarios/{scenario_id} — Update
 
 **Request Body:**
 ```json
@@ -941,13 +929,13 @@ This creates 3 SKUs across 3 warehouses in 2 regions. Run all subsequent tests a
 
 **Expected 200 OK** — updated scenario
 
-### POST /api/v1/scenarios/{scenario_id}/run — Run the Scenario
+### POST /api/scenarios/{scenario_id}/run — Run the Scenario
 
 **Steps:** Execute with no body
 
 **Expected 200 OK** — status changes to `completed`, `last_run_at` populated, `last_run_output` contains results
 
-### DELETE /api/v1/scenarios/{scenario_id} — Delete
+### DELETE /api/scenarios/{scenario_id} — Delete
 
 **Expected 200 OK:**
 ```json
@@ -956,9 +944,9 @@ This creates 3 SKUs across 3 warehouses in 2 regions. Run all subsequent tests a
 
 ---
 
-## Module 13 — Alerts (`/api/v1/alerts`)
+## Module 13 — Alerts (`/api/alerts`)
 
-### POST /api/v1/alerts — Create an Alert
+### POST /api/alerts — Create an Alert
 
 **Request Body:**
 ```json
@@ -980,7 +968,7 @@ This creates 3 SKUs across 3 warehouses in 2 regions. Run all subsequent tests a
 
 **Expected 201 Created** with full alert object
 
-### GET /api/v1/alerts — List All Alerts
+### GET /api/alerts — List All Alerts
 
 **Optional filters** (add as query params):
 - `severity=critical`
@@ -1005,7 +993,7 @@ This creates 3 SKUs across 3 warehouses in 2 regions. Run all subsequent tests a
 }
 ```
 
-### PATCH /api/v1/alerts/{alert_id}/read — Mark as Read
+### PATCH /api/alerts/{alert_id}/read — Mark as Read
 
 **Expected 200 OK:**
 ```json
@@ -1016,7 +1004,7 @@ This creates 3 SKUs across 3 warehouses in 2 regions. Run all subsequent tests a
 }
 ```
 
-### DELETE /api/v1/alerts/{alert_id} — Delete Alert
+### DELETE /api/alerts/{alert_id} — Delete Alert
 
 **Expected 200 OK:**
 ```json
@@ -1028,9 +1016,9 @@ This creates 3 SKUs across 3 warehouses in 2 regions. Run all subsequent tests a
 
 ---
 
-## Module 14 — Reports (`/api/v1/reports`)
+## Module 14 — Reports (`/api/reports`)
 
-### POST /api/v1/reports/generate — Generate a Report
+### POST /api/reports/generate — Generate a Report
 
 **Test A — Forecast Summary:**
 ```json
@@ -1073,17 +1061,17 @@ This creates 3 SKUs across 3 warehouses in 2 regions. Run all subsequent tests a
 
 **Failure:** Invalid `report_type` → 422 Unprocessable Entity
 
-### GET /api/v1/reports — List All Reports
+### GET /api/reports — List All Reports
 
 **Expected 200 OK:** Array of report summaries (newest first)
 
-### GET /api/v1/reports/{report_id} — Get Full Report
+### GET /api/reports/{report_id} — Get Full Report
 
 **Expected 200 OK:** Complete report including data payload
 
 **Nonexistent ID → 404 Not Found**
 
-### GET /api/v1/reports/{report_id}/download — Download Report
+### GET /api/reports/{report_id}/download — Download Report
 
 **Expected:** File download attachment
 - `format: "json"` → downloads as `.json` file
@@ -1091,11 +1079,11 @@ This creates 3 SKUs across 3 warehouses in 2 regions. Run all subsequent tests a
 
 ---
 
-## Module 15 — Dashboard (`/api/v1/dashboard`)
+## Module 15 — Dashboard (`/api/dashboard`)
 
 **Note:** Requires inventory data seeded (Module 11) and forecasts generated (Module 9) for meaningful results. Returns empty/zero values otherwise — not an error.
 
-### GET /api/v1/dashboard/summary — Overall Summary
+### GET /api/dashboard/summary — Overall Summary
 
 **Expected 200 OK:**
 ```json
@@ -1109,7 +1097,7 @@ This creates 3 SKUs across 3 warehouses in 2 regions. Run all subsequent tests a
 }
 ```
 
-### GET /api/v1/dashboard/demand-trend — Demand Trend
+### GET /api/dashboard/demand-trend — Demand Trend
 
 **Query param:** `days` (1–365, default 30)
 
@@ -1132,25 +1120,25 @@ This creates 3 SKUs across 3 warehouses in 2 regions. Run all subsequent tests a
 }
 ```
 
-### GET /api/v1/dashboard/regional-forecast — Regional Forecast
+### GET /api/dashboard/regional-forecast — Regional Forecast
 
 **Expected 200 OK** — forecasts grouped by region with trend indicators
 
-### GET /api/v1/dashboard/warehouse-distribution — Warehouse Distribution
+### GET /api/dashboard/warehouse-distribution — Warehouse Distribution
 
 **Expected 200 OK** — stock levels per warehouse with status indicators
 
-### GET /api/v1/dashboard/ai-insights — AI Insights
+### GET /api/dashboard/ai-insights — AI Insights
 
 **Expected 200 OK** — actionable AI-generated insights based on current data
 
-### GET /api/v1/dashboard/live-alerts — Live Alerts
+### GET /api/dashboard/live-alerts — Live Alerts
 
 **Query param:** `limit` (1–100, default 10)
 
 **Expected 200 OK** — recent alerts sorted by timestamp
 
-### GET /api/v1/dashboard/top-skus — Top SKUs
+### GET /api/dashboard/top-skus — Top SKUs
 
 **Query param:** `limit` (1–50, default 10)
 
@@ -1158,21 +1146,21 @@ This creates 3 SKUs across 3 warehouses in 2 regions. Run all subsequent tests a
 
 ---
 
-## Module 16 — Validation (`/api/v1/validation`)
+## Module 16 — Validation (`/api/validation`)
 
 **Note:** Validation errors are auto-generated when the data pipeline runs. If no errors exist, the list will be empty.
 
-### GET /api/v1/validation/errors — List All Errors
+### GET /api/validation/errors — List All Errors
 
 **Expected 200 OK:** Array of validation errors (may be empty on a fresh DB)
 
-### GET /api/v1/validation/errors/{error_id} — Get One Error
+### GET /api/validation/errors/{error_id} — Get One Error
 
 **Expected 200 OK:** Single error
 
 **Nonexistent ID → 404 Not Found**
 
-### POST /api/v1/validation/errors/{error_id}/fix — Fix an Error
+### POST /api/validation/errors/{error_id}/fix — Fix an Error
 
 **Request Body:**
 ```json
@@ -1181,11 +1169,11 @@ This creates 3 SKUs across 3 warehouses in 2 regions. Run all subsequent tests a
 
 **Expected 200 OK** — status changes to `fixed`
 
-### POST /api/v1/validation/errors/{error_id}/ignore — Ignore an Error
+### POST /api/validation/errors/{error_id}/ignore — Ignore an Error
 
 **Expected 200 OK** — status changes to `ignored`
 
-### POST /api/v1/validation/fix-all — Fix All Errors
+### POST /api/validation/fix-all — Fix All Errors
 
 **Expected 200 OK:**
 ```json

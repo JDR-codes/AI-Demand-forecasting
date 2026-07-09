@@ -128,7 +128,7 @@ class ReorderService:
 
         forecasted_demand_30days = avg_daily_demand * 30
 
-        return ReorderPointDetail(
+        detail = ReorderPointDetail(
             sku=sku,
             warehouse=warehouse,
             current_stock=current_stock,
@@ -141,6 +141,27 @@ class ReorderService:
             forecasted_demand_next_30days=forecasted_demand_30days,
             days_until_stockout=days_until_stockout,
         )
+
+        # Persist this calculation as a history record — each call inserts
+        # a new snapshot row (no update-in-place), matching the table
+        # having only created_at (no updated_at).
+        db.add(
+            ReorderPointModel(
+                sku=sku,
+                warehouse=warehouse,
+                avg_daily_demand=avg_daily_demand,
+                lead_time_days=lead_time_days,
+                safety_stock=safety_stock,
+                reorder_point_value=reorder_point,
+                economic_order_quantity=eoq,
+                current_stock=current_stock,
+                reorder_status=status,
+                days_until_stockout=days_until_stockout,
+            )
+        )
+        db.commit()
+
+        return detail
 
     @staticmethod
     def batch_calculate_reorder_points(

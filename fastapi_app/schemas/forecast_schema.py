@@ -64,6 +64,7 @@ class GenerateForecastRequest(BaseModel):
     sku: str
     region: str
     warehouse: str
+    csv_path: Optional[str] = None
 
 
 class ForecastResultsResponse(BaseModel):

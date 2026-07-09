@@ -13,9 +13,15 @@ class OtpRecord(Base):
     otp_code = Column(String(10), nullable=False)
 
     # Which user this OTP belongs to (via email lookup) — OTP is delivered
-    # by email (see services/auth/email_service.py), not SMS, so there's no
+    # by email (see utils/email_utils.py), not SMS, so there's no
     # phone_number column here anymore.
     user_email = Column(String(255), nullable=False, index=True)
+
+    # What this OTP is for — "registration" (verifying a new email before
+    # account creation) or "password_reset" (existing account resetting
+    # their password). Keeps both flows sharing one table without a
+    # registration OTP being usable to reset an unrelated account's password.
+    purpose = Column(String(32), nullable=False, default="password_reset")
 
     # Has this OTP been used already?
     is_used = Column(Boolean, default=False, nullable=False)
