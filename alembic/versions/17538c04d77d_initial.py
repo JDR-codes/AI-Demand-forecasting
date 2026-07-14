@@ -1,8 +1,8 @@
-"""'initial'
+"""initial
 
-Revision ID: 249831868ae4
+Revision ID: 17538c04d77d
 Revises: 
-Create Date: 2026-07-02 13:00:36.008259
+Create Date: 2026-07-14 15:58:20.235819
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = '249831868ae4'
+revision: str = '17538c04d77d'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -36,13 +36,37 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_alerts_id'), 'alerts', ['id'], unique=False)
+    op.create_table('auth_audit_logs',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('email', sa.String(length=255), nullable=True),
+    sa.Column('event_type', sa.String(length=64), nullable=False),
+    sa.Column('success', sa.Boolean(), nullable=False),
+    sa.Column('ip_address', sa.String(length=64), nullable=True),
+    sa.Column('user_agent', sa.String(length=255), nullable=True),
+    sa.Column('detail', sa.Text(), nullable=True),
+    sa.Column('created_at', sa.DateTime(), nullable=False),
+    sa.PrimaryKeyConstraint('id')
+    )
+    op.create_index(op.f('ix_auth_audit_logs_created_at'), 'auth_audit_logs', ['created_at'], unique=False)
+    op.create_index(op.f('ix_auth_audit_logs_email'), 'auth_audit_logs', ['email'], unique=False)
+    op.create_index(op.f('ix_auth_audit_logs_event_type'), 'auth_audit_logs', ['event_type'], unique=False)
+    op.create_index(op.f('ix_auth_audit_logs_id'), 'auth_audit_logs', ['id'], unique=False)
     op.create_table('data_sources',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('name', sa.String(length=255), nullable=False),
-    sa.Column('type', sa.String(length=100), nullable=False),
-    sa.Column('connection_string', sa.String(length=1024), nullable=False),
+    sa.Column('type', sa.Enum('API', 'DATABASE', 'CLOUD_STORAGE', 'LOCAL_FOLDER', name='datasourcetype'), nullable=False),
+    sa.Column('provider', sa.Enum('SAP', 'MYSQL', 'POSTGRES', 'SQLITE', 'S3', 'MINIO', 'SUPPLIER', 'SALES', 'INVENTORY', 'WEATHER', 'CUSTOM', name='datasourceprovider'), nullable=True),
+    sa.Column('base_url', sa.String(length=1024), nullable=True),
+    sa.Column('connection_string', sa.String(length=1024), nullable=True),
+    sa.Column('api_key', sa.String(length=512), nullable=True),
+    sa.Column('username', sa.String(length=255), nullable=True),
+    sa.Column('password', sa.String(length=255), nullable=True),
+    sa.Column('bucket_name', sa.String(length=255), nullable=True),
+    sa.Column('folder_path', sa.String(length=1024), nullable=True),
+    sa.Column('table_name', sa.String(length=255), nullable=True),
     sa.Column('status', sa.String(length=50), nullable=False),
     sa.Column('health', sa.String(length=50), nullable=False),
+    sa.Column('sync_frequency', sa.String(length=50), nullable=False),
     sa.Column('last_sync', sa.DateTime(), nullable=True),
     sa.Column('created_at', sa.DateTime(), nullable=False),
     sa.PrimaryKeyConstraint('id')
@@ -126,10 +150,22 @@ def upgrade() -> None:
     )
     op.create_index(op.f('ix_inventory_transfers_id'), 'inventory_transfers', ['id'], unique=False)
     op.create_index(op.f('ix_inventory_transfers_sku'), 'inventory_transfers', ['sku'], unique=False)
+    op.create_table('model_registry',
+    sa.Column('id', sa.String(length=36), nullable=False),
+    sa.Column('name', sa.String(length=255), nullable=False),
+    sa.Column('model_type', sa.String(length=50), nullable=False),
+    sa.Column('version', sa.String(length=50), nullable=True),
+    sa.Column('path', sa.String(length=1024), nullable=True),
+    sa.Column('meta_info', sa.JSON(), nullable=True),
+    sa.Column('status', sa.String(length=50), nullable=False),
+    sa.Column('created_at', sa.DateTime(), nullable=False),
+    sa.PrimaryKeyConstraint('id')
+    )
     op.create_table('otp_records',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('otp_code', sa.String(length=10), nullable=False),
     sa.Column('user_email', sa.String(length=255), nullable=False),
+    sa.Column('purpose', sa.String(length=32), nullable=False),
     sa.Column('is_used', sa.Boolean(), nullable=False),
     sa.Column('expires_at', sa.DateTime(), nullable=False),
     sa.Column('created_at', sa.DateTime(), nullable=False),
@@ -186,6 +222,9 @@ def upgrade() -> None:
     sa.Column('format', sa.String(length=20), nullable=False),
     sa.Column('parameters', sa.JSON(), nullable=True),
     sa.Column('data', sa.JSON(), nullable=True),
+    sa.Column('description', sa.Text(), nullable=True),
+    sa.Column('file_size', sa.Integer(), nullable=True),
+    sa.Column('page_count', sa.Integer(), nullable=True),
     sa.Column('summary', sa.Text(), nullable=True),
     sa.Column('generated_by', sa.Integer(), nullable=True),
     sa.Column('generated_at', sa.DateTime(), nullable=True),
@@ -235,6 +274,21 @@ def upgrade() -> None:
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_scenarios_id'), 'scenarios', ['id'], unique=False)
+    op.create_table('training_jobs',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('job_id', sa.String(length=36), nullable=False),
+    sa.Column('model_id', sa.String(length=36), nullable=True),
+    sa.Column('csv_path', sa.String(length=1024), nullable=True),
+    sa.Column('model_type', sa.String(length=50), nullable=False),
+    sa.Column('status', sa.String(length=50), nullable=False),
+    sa.Column('metrics', sa.JSON(), nullable=True),
+    sa.Column('created_at', sa.DateTime(), nullable=False),
+    sa.Column('updated_at', sa.DateTime(), nullable=False),
+    sa.Column('completed_at', sa.DateTime(), nullable=True),
+    sa.PrimaryKeyConstraint('id')
+    )
+    op.create_index(op.f('ix_training_jobs_id'), 'training_jobs', ['id'], unique=False)
+    op.create_index(op.f('ix_training_jobs_job_id'), 'training_jobs', ['job_id'], unique=True)
     op.create_table('validation_errors',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('source', sa.String(length=255), nullable=False),
@@ -242,6 +296,13 @@ def upgrade() -> None:
     sa.Column('severity', sa.String(length=50), nullable=False),
     sa.Column('rows_affected', sa.Integer(), nullable=False),
     sa.Column('status', sa.String(length=50), nullable=False),
+    sa.Column('column_name', sa.String(length=100), nullable=True),
+    sa.Column('row_number', sa.Integer(), nullable=True),
+    sa.Column('expected_value', sa.String(length=255), nullable=True),
+    sa.Column('actual_value', sa.String(length=255), nullable=True),
+    sa.Column('error_message', sa.Text(), nullable=True),
+    sa.Column('suggestion', sa.Text(), nullable=True),
+    sa.Column('created_at', sa.DateTime(), nullable=True),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_index(op.f('ix_validation_errors_id'), 'validation_errors', ['id'], unique=False)
@@ -270,6 +331,22 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['role_id'], ['roles.id'], ondelete='CASCADE'),
     sa.PrimaryKeyConstraint('role_id', 'permission_id')
     )
+    op.create_table('sync_logs',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('datasource_id', sa.Integer(), nullable=True),
+    sa.Column('started_at', sa.DateTime(), nullable=True),
+    sa.Column('completed_at', sa.DateTime(), nullable=True),
+    sa.Column('status', sa.String(length=50), nullable=True),
+    sa.Column('rows_processed', sa.Integer(), nullable=True),
+    sa.Column('rows_failed', sa.Integer(), nullable=True),
+    sa.Column('rows_validated', sa.Integer(), nullable=True),
+    sa.Column('message', sa.Text(), nullable=True),
+    sa.Column('error_details', sa.Text(), nullable=True),
+    sa.Column('duration_seconds', sa.Float(), nullable=True),
+    sa.ForeignKeyConstraint(['datasource_id'], ['data_sources.id'], ),
+    sa.PrimaryKeyConstraint('id')
+    )
+    op.create_index(op.f('ix_sync_logs_id'), 'sync_logs', ['id'], unique=False)
     op.create_table('users',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('name', sa.String(length=255), nullable=False),
@@ -284,6 +361,110 @@ def upgrade() -> None:
     sa.UniqueConstraint('email')
     )
     op.create_index(op.f('ix_users_id'), 'users', ['id'], unique=False)
+    op.create_table('raw_inventory',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('datasource_id', sa.Integer(), nullable=False),
+    sa.Column('sync_id', sa.Integer(), nullable=True),
+    sa.Column('warehouse', sa.String(length=100), nullable=True),
+    sa.Column('sku', sa.String(length=100), nullable=True),
+    sa.Column('stock', sa.Integer(), nullable=True),
+    sa.Column('reorder_level', sa.Integer(), nullable=True),
+    sa.Column('last_updated', sa.DateTime(), nullable=True),
+    sa.Column('column_name', sa.String(length=100), nullable=True),
+    sa.Column('row_number', sa.Integer(), nullable=True),
+    sa.Column('expected_value', sa.String(length=255), nullable=True),
+    sa.Column('actual_value', sa.String(length=255), nullable=True),
+    sa.Column('error_message', sa.Text(), nullable=True),
+    sa.Column('suggestion', sa.Text(), nullable=True),
+    sa.Column('raw_data', sa.JSON(), nullable=True),
+    sa.Column('validation_status', sa.String(length=50), nullable=True),
+    sa.Column('created_at', sa.DateTime(), nullable=True),
+    sa.ForeignKeyConstraint(['datasource_id'], ['data_sources.id'], ),
+    sa.ForeignKeyConstraint(['sync_id'], ['sync_logs.id'], ),
+    sa.PrimaryKeyConstraint('id')
+    )
+    op.create_index(op.f('ix_raw_inventory_id'), 'raw_inventory', ['id'], unique=False)
+    op.create_table('raw_products',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('datasource_id', sa.Integer(), nullable=False),
+    sa.Column('sync_id', sa.Integer(), nullable=True),
+    sa.Column('sku', sa.String(length=100), nullable=True),
+    sa.Column('name', sa.String(length=255), nullable=True),
+    sa.Column('category', sa.String(length=100), nullable=True),
+    sa.Column('price', sa.Float(), nullable=True),
+    sa.Column('column_name', sa.String(length=100), nullable=True),
+    sa.Column('row_number', sa.Integer(), nullable=True),
+    sa.Column('expected_value', sa.String(length=255), nullable=True),
+    sa.Column('actual_value', sa.String(length=255), nullable=True),
+    sa.Column('error_message', sa.Text(), nullable=True),
+    sa.Column('suggestion', sa.Text(), nullable=True),
+    sa.Column('raw_data', sa.JSON(), nullable=True),
+    sa.Column('validation_status', sa.String(length=50), nullable=True),
+    sa.Column('created_at', sa.DateTime(), nullable=True),
+    sa.ForeignKeyConstraint(['datasource_id'], ['data_sources.id'], ),
+    sa.ForeignKeyConstraint(['sync_id'], ['sync_logs.id'], ),
+    sa.PrimaryKeyConstraint('id')
+    )
+    op.create_index(op.f('ix_raw_products_id'), 'raw_products', ['id'], unique=False)
+    op.create_table('raw_sales',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('datasource_id', sa.Integer(), nullable=False),
+    sa.Column('sync_id', sa.Integer(), nullable=True),
+    sa.Column('date', sa.DateTime(), nullable=True),
+    sa.Column('sku', sa.String(length=100), nullable=True),
+    sa.Column('demand', sa.Float(), nullable=True),
+    sa.Column('revenue', sa.Float(), nullable=True),
+    sa.Column('units', sa.Integer(), nullable=True),
+    sa.Column('column_name', sa.String(length=100), nullable=True),
+    sa.Column('row_number', sa.Integer(), nullable=True),
+    sa.Column('expected_value', sa.String(length=255), nullable=True),
+    sa.Column('actual_value', sa.String(length=255), nullable=True),
+    sa.Column('error_message', sa.Text(), nullable=True),
+    sa.Column('suggestion', sa.Text(), nullable=True),
+    sa.Column('raw_data', sa.JSON(), nullable=True),
+    sa.Column('validation_status', sa.String(length=50), nullable=True),
+    sa.Column('created_at', sa.DateTime(), nullable=True),
+    sa.ForeignKeyConstraint(['datasource_id'], ['data_sources.id'], ),
+    sa.ForeignKeyConstraint(['sync_id'], ['sync_logs.id'], ),
+    sa.PrimaryKeyConstraint('id')
+    )
+    op.create_index(op.f('ix_raw_sales_id'), 'raw_sales', ['id'], unique=False)
+    op.create_table('raw_suppliers',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('datasource_id', sa.Integer(), nullable=False),
+    sa.Column('sync_id', sa.Integer(), nullable=True),
+    sa.Column('supplier', sa.String(length=255), nullable=True),
+    sa.Column('sku', sa.String(length=100), nullable=True),
+    sa.Column('lead_time', sa.Integer(), nullable=True),
+    sa.Column('price', sa.Float(), nullable=True),
+    sa.Column('min_order', sa.Integer(), nullable=True),
+    sa.Column('column_name', sa.String(length=100), nullable=True),
+    sa.Column('row_number', sa.Integer(), nullable=True),
+    sa.Column('expected_value', sa.String(length=255), nullable=True),
+    sa.Column('actual_value', sa.String(length=255), nullable=True),
+    sa.Column('error_message', sa.Text(), nullable=True),
+    sa.Column('suggestion', sa.Text(), nullable=True),
+    sa.Column('raw_data', sa.JSON(), nullable=True),
+    sa.Column('validation_status', sa.String(length=50), nullable=True),
+    sa.Column('created_at', sa.DateTime(), nullable=True),
+    sa.ForeignKeyConstraint(['datasource_id'], ['data_sources.id'], ),
+    sa.ForeignKeyConstraint(['sync_id'], ['sync_logs.id'], ),
+    sa.PrimaryKeyConstraint('id')
+    )
+    op.create_index(op.f('ix_raw_suppliers_id'), 'raw_suppliers', ['id'], unique=False)
+    op.create_table('refresh_tokens',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('jti', sa.String(length=64), nullable=False),
+    sa.Column('user_id', sa.Integer(), nullable=False),
+    sa.Column('revoked', sa.Boolean(), nullable=False),
+    sa.Column('expires_at', sa.DateTime(), nullable=False),
+    sa.Column('created_at', sa.DateTime(), nullable=False),
+    sa.ForeignKeyConstraint(['user_id'], ['users.id'], ),
+    sa.PrimaryKeyConstraint('id')
+    )
+    op.create_index(op.f('ix_refresh_tokens_id'), 'refresh_tokens', ['id'], unique=False)
+    op.create_index(op.f('ix_refresh_tokens_jti'), 'refresh_tokens', ['jti'], unique=True)
+    op.create_index(op.f('ix_refresh_tokens_user_id'), 'refresh_tokens', ['user_id'], unique=False)
     op.create_table('uploads',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('filename', sa.String(length=255), nullable=False),
@@ -305,8 +486,22 @@ def downgrade() -> None:
     # ### commands auto generated by Alembic - please adjust! ###
     op.drop_index(op.f('ix_uploads_id'), table_name='uploads')
     op.drop_table('uploads')
+    op.drop_index(op.f('ix_refresh_tokens_user_id'), table_name='refresh_tokens')
+    op.drop_index(op.f('ix_refresh_tokens_jti'), table_name='refresh_tokens')
+    op.drop_index(op.f('ix_refresh_tokens_id'), table_name='refresh_tokens')
+    op.drop_table('refresh_tokens')
+    op.drop_index(op.f('ix_raw_suppliers_id'), table_name='raw_suppliers')
+    op.drop_table('raw_suppliers')
+    op.drop_index(op.f('ix_raw_sales_id'), table_name='raw_sales')
+    op.drop_table('raw_sales')
+    op.drop_index(op.f('ix_raw_products_id'), table_name='raw_products')
+    op.drop_table('raw_products')
+    op.drop_index(op.f('ix_raw_inventory_id'), table_name='raw_inventory')
+    op.drop_table('raw_inventory')
     op.drop_index(op.f('ix_users_id'), table_name='users')
     op.drop_table('users')
+    op.drop_index(op.f('ix_sync_logs_id'), table_name='sync_logs')
+    op.drop_table('sync_logs')
     op.drop_table('role_permissions')
     op.drop_index(op.f('ix_warehouse_inventory_warehouse'), table_name='warehouse_inventory')
     op.drop_index(op.f('ix_warehouse_inventory_sku'), table_name='warehouse_inventory')
@@ -314,6 +509,9 @@ def downgrade() -> None:
     op.drop_table('warehouse_inventory')
     op.drop_index(op.f('ix_validation_errors_id'), table_name='validation_errors')
     op.drop_table('validation_errors')
+    op.drop_index(op.f('ix_training_jobs_job_id'), table_name='training_jobs')
+    op.drop_index(op.f('ix_training_jobs_id'), table_name='training_jobs')
+    op.drop_table('training_jobs')
     op.drop_index(op.f('ix_scenarios_id'), table_name='scenarios')
     op.drop_table('scenarios')
     op.drop_index(op.f('ix_safety_stock_calculations_warehouse'), table_name='safety_stock_calculations')
@@ -338,6 +536,7 @@ def downgrade() -> None:
     op.drop_index(op.f('ix_otp_records_user_email'), table_name='otp_records')
     op.drop_index(op.f('ix_otp_records_id'), table_name='otp_records')
     op.drop_table('otp_records')
+    op.drop_table('model_registry')
     op.drop_index(op.f('ix_inventory_transfers_sku'), table_name='inventory_transfers')
     op.drop_index(op.f('ix_inventory_transfers_id'), table_name='inventory_transfers')
     op.drop_table('inventory_transfers')
@@ -354,6 +553,11 @@ def downgrade() -> None:
     op.drop_table('excess_stock')
     op.drop_index(op.f('ix_data_sources_id'), table_name='data_sources')
     op.drop_table('data_sources')
+    op.drop_index(op.f('ix_auth_audit_logs_id'), table_name='auth_audit_logs')
+    op.drop_index(op.f('ix_auth_audit_logs_event_type'), table_name='auth_audit_logs')
+    op.drop_index(op.f('ix_auth_audit_logs_email'), table_name='auth_audit_logs')
+    op.drop_index(op.f('ix_auth_audit_logs_created_at'), table_name='auth_audit_logs')
+    op.drop_table('auth_audit_logs')
     op.drop_index(op.f('ix_alerts_id'), table_name='alerts')
     op.drop_table('alerts')
     # ### end Alembic commands ###

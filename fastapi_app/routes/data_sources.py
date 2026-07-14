@@ -1,5 +1,7 @@
-from fastapi import APIRouter, HTTPException, Depends
-from typing import List
+# fastapi_app/routes/data_sources.py
+
+from fastapi import APIRouter, HTTPException, Depends, Query
+from typing import List, Optional
 from sqlalchemy.orm import Session
 from fastapi_app.core.dependencies import get_current_user
 from fastapi_app.db.session import get_db
@@ -13,15 +15,31 @@ from fastapi_app.services.data_integration.data_source_service import (
     schedule_sync_data_source,
     get_data_source_health,
     get_data_source_logs,
+    get_data_source_dashboard_metrics,
 )
+from fastapi_app.schemas.data_source_dashboard_schema import DataSourceDashboardMetrics
 from fastapi_app.schemas.data_source_schema import (
     DataSourceCreate,
     DataSourceUpdate,
     DataSourceOut,
 )
+from fastapi_app.services.scheduler.scheduler_service import scheduler
 from fastapi_app.models.auth_model import User
 
 router = APIRouter(prefix="/api/data-sources", tags=["Data Sources"])
+
+
+# ============================================================================
+# SPECIFIC ROUTES FIRST (BEFORE PARAMETERIZED ROUTES)
+# ============================================================================
+
+@router.get("/dashboard", response_model=DataSourceDashboardMetrics)
+def get_data_source_dashboard(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Get dashboard metrics for data sources."""
+    return get_data_source_dashboard_metrics(db)
 
 
 @router.get("/", response_model=List[DataSourceOut])
@@ -40,6 +58,10 @@ def create_data_source_endpoint(
 ):
     return create_data_source(db, payload.dict())
 
+
+# ============================================================================
+# PARAMETERIZED ROUTES (WITH {data_source_id})
+# ============================================================================
 
 @router.get("/{data_source_id}", response_model=DataSourceOut)
 def get_data_source_endpoint(
@@ -74,6 +96,8 @@ def delete_data_source_endpoint(
 ):
     if not delete_data_source(db, data_source_id):
         raise HTTPException(status_code=404, detail="Data source not found")
+    # Also remove from scheduler
+    scheduler.remove_sync(data_source_id)
     return {"deleted": True}
 
 
@@ -92,10 +116,12 @@ def sync_data_source_endpoint(
 @router.post("/{data_source_id}/schedule-sync", response_model=DataSourceOut)
 def schedule_sync_data_source_endpoint(
     data_source_id: int,
+    frequency: str = Query(...),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    ds = schedule_sync_data_source(db, data_source_id)
+
+    ds = schedule_sync_data_source(db, data_source_id, frequency)
     if not ds:
         raise HTTPException(status_code=404, detail="Data source not found")
     return ds

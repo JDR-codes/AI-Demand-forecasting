@@ -17,16 +17,8 @@ from fastapi_app.routes.scenarios import router as scenarios_router
 from fastapi_app.routes.alerts_module13 import router as alerts_module13_router
 from fastapi_app.routes.reports_module14 import router as reports_router
 from fastapi_app.routes.dashboard import router as dashboard_router
+from fastapi_app.routes.mock_router import router as  mock_router
 from fastapi_app.db.session import init_db
-# Import models so they are registered with SQLAlchemy before init_db()
-from fastapi_app.models.auth_model import User  # noqa: F401
-from fastapi_app.models.data_source_model import DataSource  # noqa: F401
-from fastapi_app.models.upload_model import Upload  # noqa: F401
-from fastapi_app.models.validation_error_model import ValidationError  # noqa: F401
-from fastapi_app.models.forecast_model import Forecast  # noqa: F401
-from fastapi_app.models.recommendation_model import Recommendation  # noqa: F401
-from fastapi_app.models.inventory_model import InventorySKU, WarehouseInventory, SafetyStockCalculation, ReorderPoint, InventoryTransfer, ExcessStock  # noqa: F401
-from fastapi_app.models.scenario_model import Scenario  # noqa: F401
 
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
@@ -50,6 +42,7 @@ app.include_router(roles_router)
 app.include_router(data_sources_router)
 app.include_router(uploads_router)
 app.include_router(validation_router)
+app.include_router(mock_router)
 app.include_router(processing_router)
 app.include_router(forecast_engine_router)
 app.include_router(forecast_module9_router)

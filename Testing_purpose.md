@@ -375,118 +375,383 @@ SELECT * FROM otp_records WHERE email = 'admin@example.com' ORDER BY created_at 
 ---
 
 
-## Module 6 — Data Sources (`/api/data-sources`)
+Module 6 — Data Sources (/api/data-sources)
+Requires: Login (any role)
 
-**Requires:** Login (any role)
+POST /api/data-sources/ — Create Data Source
+Request Body:
 
-### POST /api/data-sources/ — Create Data Source
-
-**Request Body:**
-```json
+json
 {
   "name": "Main CSV Source",
-  "type": "csv",
-  "connection_string": "fastapi_app/data/demand forecasting dataset.csv"
+  "type": "LOCAL_FOLDER",
+  "provider": "CUSTOM",
+  "folder_path": "fastapi_app/data/demand_forecasting_dataset.csv",
+  "sync_frequency": "manual"
 }
-```
+Supported Types:
 
-**Expected 200 OK** with `id`, `status: "inactive"`, `health: "unknown"`
+API — REST API endpoint
 
-**Note:** Save the `id` returned — use it for all subsequent data source tests
+DATABASE — MySQL, PostgreSQL, SQLite
 
-### GET /api/data-sources/ — List All Data Sources
+CLOUD_STORAGE — S3, MinIO
 
-**Expected 200 OK:** Array of data source objects
+LOCAL_FOLDER — Local CSV, Excel, JSON files
 
-### GET /api/data-sources/{data_source_id} — Get One
+Supported Providers:
 
-**Expected 200 OK:** Single data source object
+SAP, MYSQL, POSTGRES, SQLITE, S3, MINIO
 
-**Nonexistent ID → 404 Not Found**
+SUPPLIER, SALES, INVENTORY, WEATHER, CUSTOM
 
-### PUT /api/data-sources/{data_source_id} — Update
+Example — API Data Source:
 
-**Request Body:**
-```json
+json
 {
-  "name": "Updated CSV Source",
-  "status": "active"
+  "name": "Supplier API",
+  "type": "API",
+  "provider": "SUPPLIER",
+  "base_url": "http://localhost:8000/mock/supplier",
+  "api_key": "your-api-key-here",
+  "sync_frequency": "hourly"
 }
-```
+Example — Database Data Source:
 
-**Expected 200 OK** with updated fields
+json
+{
+  "name": "Sales Database",
+  "type": "DATABASE",
+  "provider": "MYSQL",
+  "connection_string": "mysql+pymysql://user:password@localhost/sales_db",
+  "table_name": "sales_data",
+  "sync_frequency": "daily"
+}
+Example — Local Folder/File:
 
-### POST /api/data-sources/{data_source_id}/sync — Trigger Sync
+json
+{
+  "name": "Main CSV Source",
+  "type": "LOCAL_FOLDER",
+  "provider": "CUSTOM",
+  "folder_path": "fastapi_app/data/demand_forecasting_dataset.csv",
+  "sync_frequency": "manual"
+}
+Expected 200 OK:
 
-**Expected 200 OK** — `last_sync` timestamp updated
-
-### POST /api/data-sources/{data_source_id}/schedule-sync — Schedule Sync
-
-**Expected 200 OK** — sync scheduled
-
-### GET /api/data-sources/{data_source_id}/health — Health Check
-
-**Expected 200 OK** — health status object
-
-### GET /api/data-sources/{data_source_id}/logs — View Logs
-
-**Expected 200 OK** — array of log entries
-
-### DELETE /api/data-sources/{data_source_id} — Delete
-
-**Expected 200 OK:**
-```json
-{ "deleted": true }
-```
-
----
-
-## Module 7 — File Uploads (`/api/uploads`)
-
-### POST /api/uploads/file — Upload a CSV
-
-**Steps:**
-1. Expand the endpoint in Swagger
-2. Click "Try it out"
-3. Under "file", click "Choose File" and select your `demand forecasting dataset.csv`
-4. Click "Execute"
-
-**Expected 200 OK:**
-```json
+json
 {
   "id": 1,
-  "filename": "demand forecasting dataset.csv",
-  "file_path": "...",
-  "status": "uploaded",
-  "uploaded_by": "admin@example.com",
-  "created_at": "..."
+  "name": "Main CSV Source",
+  "type": "LOCAL_FOLDER",
+  "provider": "CUSTOM",
+  "base_url": null,
+  "connection_string": null,
+  "api_key": null,
+  "username": null,
+  "password": null,
+  "bucket_name": null,
+  "folder_path": "fastapi_app/data/demand_forecasting_dataset.csv",
+  "table_name": null,
+  "status": "inactive",
+  "health": "unknown",
+  "sync_frequency": "manual",
+  "last_sync": null,
+  "created_at": "2026-07-14T10:30:00.123Z"
 }
-```
+Note: Save the id returned — use it for all subsequent data source tests.
 
-**Failure:** Uploading a non-CSV file → 400 Bad Request with "Only CSV files are accepted"
+GET /api/data-sources/ — List All Data Sources
+Expected 200 OK:
 
-### GET /api/uploads/ — List All Uploads
+json
+[
+  {
+    "id": 1,
+    "name": "Main CSV Source",
+    "type": "LOCAL_FOLDER",
+    "provider": "CUSTOM",
+    "status": "inactive",
+    "health": "unknown",
+    "sync_frequency": "manual",
+    "last_sync": null,
+    "created_at": "2026-07-14T10:30:00.123Z"
+  }
+]
+GET /api/data-sources/{data_source_id} — Get One
+Expected 200 OK: Single data source object
 
-**Expected 200 OK:** Array of upload records
+Nonexistent ID → 404 Not Found
 
-### GET /api/uploads/{upload_id} — Get One Upload
+json
+{
+  "detail": "Data source not found"
+}
+GET /api/data-sources/dashboard — Dashboard Metrics
+Expected 200 OK:
 
-**Expected 200 OK:** Single upload record
+json
+{
+  "total_records": 526633,
+  "active_connections": 3,
+  "total_connections": 6,
+  "sync_frequency": "<5 min",
+  "validation_errors": 5,
+  "timestamp": "2026-07-14T10:30:00.123Z"
+}
+Field Descriptions:
 
-**Nonexistent ID → 404 Not Found**
+total_records — Total records across all raw data tables
 
-### POST /api/uploads/{upload_id}/process — Process Upload
+active_connections — Data sources with status success, syncing, active, or connected
 
-**Expected 200 OK** — status changes to `processed`
+total_connections — Total number of configured data sources
 
-### DELETE /api/uploads/{upload_id} — Delete Upload
+sync_frequency — Summary of sync frequencies (<5 min, ~1 hour, Daily, etc.)
 
-**Expected 200 OK:**
-```json
-{ "deleted": true }
-```
+validation_errors — Number of open validation errors
 
----
+PUT /api/data-sources/{data_source_id} — Update
+Request Body:
+
+json
+{
+  "name": "Updated CSV Source",
+  "status": "active",
+  "sync_frequency": "hourly"
+}
+Expected 200 OK:
+
+json
+{
+  "id": 1,
+  "name": "Updated CSV Source",
+  "type": "LOCAL_FOLDER",
+  "status": "active",
+  "sync_frequency": "hourly",
+  ...
+}
+POST /api/data-sources/{data_source_id}/sync — Trigger Sync
+Trigger a manual sync for the data source.
+
+Expected 200 OK:
+
+json
+{
+  "id": 1,
+  "name": "Main CSV Source",
+  "status": "success",
+  "health": "healthy",
+  "last_sync": "2026-07-14T10:35:00.123Z"
+}
+Sync Status:
+
+success — All data validated and stored
+
+partial_success — Some validation errors but data stored
+
+failed — Sync failed or validation failed completely
+
+syncing — Sync in progress
+
+POST /api/data-sources/{data_source_id}/schedule-sync — Schedule Sync
+Request Body:
+
+json
+{
+  "frequency": "hourly"
+}
+Supported Frequencies:
+
+manual — No automatic sync
+
+hourly — Every hour at minute 0
+
+daily — Every day at midnight
+
+weekly — Every Monday at midnight
+
+monthly — First day of month at midnight
+
+realtime — Every 5 minutes
+
+Expected 200 OK:
+
+json
+{
+  "id": 1,
+  "name": "Main CSV Source",
+  "sync_frequency": "hourly",
+  "status": "scheduled"
+}
+GET /api/data-sources/{data_source_id}/health — Health Check
+Expected 200 OK:
+
+json
+{
+  "health": "healthy",
+  "health_score": 98,
+  "status": "success",
+  "last_sync": "2026-07-14T10:35:00.123Z",
+  "sync_frequency": "hourly"
+}
+Health Status:
+
+healthy — Health score ≥ 80
+
+degraded — Health score 50-79
+
+unhealthy — Health score < 50
+
+error — Error occurred
+
+unknown — No sync data available
+
+Health Score Calculation:
+
+Based on last 10 syncs
+
+Success rate (70% weight)
+
+Average duration (30% weight)
+
+Range: 0-100
+
+GET /api/data-sources/{data_source_id}/logs — View Logs
+Expected 200 OK:
+
+json
+[
+  {
+    "timestamp": "2026-07-14T10:35:00.123Z",
+    "status": "success",
+    "rows_processed": 1000,
+    "duration_seconds": 2.5,
+    "message": "Processed 1000 rows, 980 validated, 20 failed"
+  },
+  {
+    "timestamp": "2026-07-14T10:30:00.123Z",
+    "status": "failed",
+    "rows_processed": 0,
+    "duration_seconds": 0.5,
+    "message": "Sync failed: No data retrieved"
+  }
+]
+DELETE /api/data-sources/{data_source_id} — Delete
+Expected 200 OK:
+
+json
+{
+  "deleted": true
+}
+Module 7 — File Uploads (/api/uploads)
+POST /api/uploads/file — Upload a CSV
+Steps:
+
+Expand the endpoint in Swagger
+
+Click "Try it out"
+
+Under "file", click "Choose File" and select your file
+
+Click "Execute"
+
+Supported File Types:
+
+.csv — Comma-separated values
+
+.xlsx — Excel files
+
+.xls — Excel files (legacy)
+
+.json — JSON files
+
+Expected 200 OK:
+
+json
+{
+  "id": 1,
+  "filename": "demand_forecasting_dataset.csv",
+  "unique_filename": "a1b2c3d4e5f6.csv",
+  "file_path": "media/uploads/csv/a1b2c3d4e5f6.csv",
+  "file_url": "/media/uploads/csv/a1b2c3d4e5f6.csv",
+  "status": "uploaded",
+  "uploaded_by": 1,
+  "uploaded_at": "2026-07-14T10:30:00.123Z"
+}
+Failure — Non-CSV File:
+
+json
+{
+  "detail": "Only CSV files are accepted"
+}
+GET /api/uploads/ — List All Uploads
+Expected 200 OK:
+
+json
+[
+  {
+    "id": 1,
+    "filename": "demand_forecasting_dataset.csv",
+    "unique_filename": "a1b2c3d4e5f6.csv",
+    "status": "processed",
+    "uploaded_at": "2026-07-14T10:30:00.123Z"
+  }
+]
+GET /api/uploads/{upload_id} — Get One Upload
+Expected 200 OK: Single upload record
+
+Nonexistent ID → 404 Not Found:
+
+json
+{
+  "detail": "Upload not found"
+}
+POST /api/uploads/{upload_id}/process — Process Upload
+Process the uploaded file with validation and store raw data.
+
+Processing Flow:
+
+File format validation
+
+Standardize column names (lowercase, underscores)
+
+Validate data using ValidationEngine
+
+Store validation errors with details
+
+Store raw data in raw_sales table
+
+Update upload status
+
+Expected 200 OK:
+
+json
+{
+  "id": 1,
+  "filename": "demand_forecasting_dataset.csv",
+  "status": "processed",
+  "uploaded_at": "2026-07-14T10:30:00.123Z"
+}
+Possible Status Values:
+
+processed — All validation passed
+
+partial_success — Some validation errors but data stored
+
+failed_validation — Too many validation errors
+
+failed — Processing error
+
+DELETE /api/uploads/{upload_id} — Delete Upload
+Deletes both the database record and the physical file.
+
+Expected 200 OK:
+
+json
+{
+  "deleted": true
+}
 
 ## Module 8 — Data Processing (`/api/processing`)
 

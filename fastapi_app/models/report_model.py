@@ -24,6 +24,8 @@ class ReportStatus(str, enum.Enum):
 class ReportFormat(str, enum.Enum):
     JSON = "json"
     CSV = "csv"
+    PDF = "pdf"
+    EXCEL = "excel"
 
 
 class Report(Base):
@@ -36,6 +38,9 @@ class Report(Base):
     format = Column(String(20), default=ReportFormat.JSON, nullable=False)
     parameters = Column(JSON, nullable=True)       # filters used to generate
     data = Column(JSON, nullable=True)             # actual report payload
+    description = Column(Text, nullable=True)      # report description from design UI
+    file_size = Column(Integer, nullable=True)     # report file size in bytes
+    page_count = Column(Integer, nullable=True)    # estimated number of pages
     summary = Column(Text, nullable=True)          # human-readable summary
     generated_by = Column(Integer, nullable=True)  # user id
     generated_at = Column(DateTime, nullable=True)
