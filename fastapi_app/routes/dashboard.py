@@ -153,3 +153,23 @@ def get_top_skus(
     - limit: Maximum number of SKUs to return (1-50, default 10)
     """
     return DashboardService.get_top_skus(db, limit=limit)
+
+
+
+@router.get("/trends")
+def get_dashboard_trends(
+    days: int = Query(30, ge=1, le=365),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Get dashboard trend data for charts."""
+    return DashboardService.get_dashboard_trends(db, days)
+
+
+@router.get("/cards")
+def get_dashboard_cards(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Get dashboard cards data."""
+    return DashboardService.get_dashboard_cards(db)

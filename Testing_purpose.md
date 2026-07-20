@@ -31,6 +31,7 @@ Open Swagger at: `http://127.0.0.1:8000/docs`
   "name": "Root Admin",
   "email": "admin@example.com",
   "password": "Admin@12345",
+  "confirm_password": "Admin@12345",
   "role": "super_admin"
 }
 ```
@@ -375,74 +376,233 @@ SELECT * FROM otp_records WHERE email = 'admin@example.com' ORDER BY created_at 
 ---
 
 
-Module 6 — Data Sources (/api/data-sources)
-Requires: Login (any role)
+Module 6 — # Data Sources API Documentation
 
-POST /api/data-sources/ — Create Data Source
-Request Body:
+## Overview
 
-json
+This document describes all **Data Sources APIs** implemented in the FastAPI application.
+
+**Base URL**
+
+```
+http://localhost:8000/api/data-sources
+```
+
+**Authentication**
+
+All endpoints require a valid JWT access token.
+
+```
+Authorization: Bearer <access_token>
+```
+
+---
+
+# Supported Data Source Types
+
+| Value           | Description                                                 |
+| --------------- | ----------------------------------------------------------- |
+| `API`           | Fetch data from a REST API                                  |
+| `DATABASE`      | Fetch data from MySQL or SQLite database                    |
+| `LOCAL_FOLDER`  | Read one CSV file or multiple CSV files from a local folder |
+| `CLOUD_STORAGE` | Reserved for S3/MinIO (currently not implemented)           |
+
+---
+
+# Supported Providers
+
+| Provider  | Usage                 |
+| --------- | --------------------- |
+| SAP       | SAP Database/API      |
+| MYSQL     | MySQL Database        |
+| POSTGRES  | PostgreSQL (reserved) |
+| SQLITE    | SQLite Database       |
+| S3        | Amazon S3             |
+| MINIO     | MinIO Storage         |
+| SUPPLIER  | Supplier API          |
+| SALES     | Sales API             |
+| INVENTORY | Inventory Source      |
+| WEATHER   | Weather API           |
+| CUSTOM    | Custom/Generic Source |
+
+---
+
+# Supported Sync Frequency
+
+```
+manual
+hourly
+daily
+weekly
+monthly
+realtime
+```
+
+---
+
+# 1. Dashboard
+
+## Endpoint
+
+```
+GET /api/data-sources/dashboard
+```
+
+### Description
+
+Returns dashboard metrics such as:
+
+* Total Records
+* Active Connections
+* Total Connections
+* Sync Frequency Summary
+* Validation Errors
+
+### Request Body
+
+No request body.
+
+### Example Response
+
+```json
 {
-  "name": "Main CSV Source",
-  "type": "LOCAL_FOLDER",
-  "provider": "CUSTOM",
-  "folder_path": "fastapi_app/data/demand_forecasting_dataset.csv",
-  "sync_frequency": "manual"
+  "total_records": 15000,
+  "active_connections": 4,
+  "total_connections": 7,
+  "sync_frequency": "<5 min",
+  "validation_errors": 2,
+  "timestamp": "2026-07-15T10:30:00"
 }
-Supported Types:
+```
 
-API — REST API endpoint
+---
 
-DATABASE — MySQL, PostgreSQL, SQLite
+# 2. List Data Sources
 
-CLOUD_STORAGE — S3, MinIO
+## Endpoint
 
-LOCAL_FOLDER — Local CSV, Excel, JSON files
+```
+GET /api/data-sources/
+```
 
-Supported Providers:
+### Description
 
-SAP, MYSQL, POSTGRES, SQLITE, S3, MINIO
+Returns all configured data sources.
 
-SUPPLIER, SALES, INVENTORY, WEATHER, CUSTOM
+### Request Body
 
-Example — API Data Source:
+None.
 
-json
+### Example Response
+
+```json
+[
+  {
+    "id": 1,
+    "name": "Sales API",
+    "type": "API",
+    "provider": "SALES",
+    "base_url": "https://api.company.com/sales",
+    "connection_string": null,
+    "api_key": "********",
+    "username": null,
+    "password": null,
+    "bucket_name": null,
+    "folder_path": null,
+    "table_name": null,
+    "sync_frequency": "hourly",
+    "status": "success",
+    "health": "healthy",
+    "last_sync": "2026-07-15T09:00:00",
+    "created_at": "2026-07-10T10:00:00"
+  }
+]
+```
+
+---
+
+# 3. Create Data Source
+
+## Endpoint
+
+```
+POST /api/data-sources/
+```
+
+## Description
+
+Creates a new data source.
+
+---
+
+## API Example
+
+```json
 {
-  "name": "Supplier API",
+  "name": "Sales API",
   "type": "API",
-  "provider": "SUPPLIER",
-  "base_url": "http://localhost:8000/mock/supplier",
-  "api_key": "your-api-key-here",
+  "provider": "SALES",
+  "base_url": "https://api.company.com/sales",
+  "connection_string": null,
+  "api_key": "sales_api_key",
+  "username": null,
+  "password": null,
+  "bucket_name": null,
+  "folder_path": null,
+  "table_name": null,
   "sync_frequency": "hourly"
 }
-Example — Database Data Source:
+```
 
-json
+---
+
+## MySQL Database Example
+
+```json
 {
   "name": "Sales Database",
   "type": "DATABASE",
   "provider": "MYSQL",
-  "connection_string": "mysql+pymysql://user:password@localhost/sales_db",
-  "table_name": "sales_data",
+  "base_url": null,
+  "connection_string": "mysql+pymysql://root:password@localhost:3306/salesdb",
+  "api_key": null,
+  "username": "root",
+  "password": "password",
+  "bucket_name": null,
+  "folder_path": null,
+  "table_name": "sales",
   "sync_frequency": "daily"
 }
-Example — Local Folder/File:
+```
 
-json
+---
+
+## SQLite Example
+
+```json
 {
-  "name": "Main CSV Source",
-  "type": "LOCAL_FOLDER",
-  "provider": "CUSTOM",
-  "folder_path": "fastapi_app/data/demand_forecasting_dataset.csv",
+  "name": "Inventory Database",
+  "type": "DATABASE",
+  "provider": "SQLITE",
+  "base_url": null,
+  "connection_string": "sqlite:///inventory.db",
+  "api_key": null,
+  "username": null,
+  "password": null,
+  "bucket_name": null,
+  "folder_path": null,
+  "table_name": "inventory",
   "sync_frequency": "manual"
 }
-Expected 200 OK:
+```
 
-json
+---
+
+## Local Folder Example
+
+```json
 {
-  "id": 1,
-  "name": "Main CSV Source",
+  "name": "Sales Folder",
   "type": "LOCAL_FOLDER",
   "provider": "CUSTOM",
   "base_url": null,
@@ -451,307 +611,579 @@ json
   "username": null,
   "password": null,
   "bucket_name": null,
-  "folder_path": "fastapi_app/data/demand_forecasting_dataset.csv",
+  "folder_path": "C:/Data/Sales/",
   "table_name": null,
-  "status": "inactive",
-  "health": "unknown",
-  "sync_frequency": "manual",
-  "last_sync": null,
-  "created_at": "2026-07-14T10:30:00.123Z"
+  "sync_frequency": "manual"
 }
-Note: Save the id returned — use it for all subsequent data source tests.
+```
 
-GET /api/data-sources/ — List All Data Sources
-Expected 200 OK:
+---
 
-json
-[
-  {
-    "id": 1,
-    "name": "Main CSV Source",
-    "type": "LOCAL_FOLDER",
-    "provider": "CUSTOM",
-    "status": "inactive",
-    "health": "unknown",
-    "sync_frequency": "manual",
-    "last_sync": null,
-    "created_at": "2026-07-14T10:30:00.123Z"
-  }
-]
-GET /api/data-sources/{data_source_id} — Get One
-Expected 200 OK: Single data source object
+## CSV File Example
 
-Nonexistent ID → 404 Not Found
-
-json
+```json
 {
-  "detail": "Data source not found"
-}
-GET /api/data-sources/dashboard — Dashboard Metrics
-Expected 200 OK:
-
-json
-{
-  "total_records": 526633,
-  "active_connections": 3,
-  "total_connections": 6,
-  "sync_frequency": "<5 min",
-  "validation_errors": 5,
-  "timestamp": "2026-07-14T10:30:00.123Z"
-}
-Field Descriptions:
-
-total_records — Total records across all raw data tables
-
-active_connections — Data sources with status success, syncing, active, or connected
-
-total_connections — Total number of configured data sources
-
-sync_frequency — Summary of sync frequencies (<5 min, ~1 hour, Daily, etc.)
-
-validation_errors — Number of open validation errors
-
-PUT /api/data-sources/{data_source_id} — Update
-Request Body:
-
-json
-{
-  "name": "Updated CSV Source",
-  "status": "active",
-  "sync_frequency": "hourly"
-}
-Expected 200 OK:
-
-json
-{
-  "id": 1,
-  "name": "Updated CSV Source",
+  "name": "Sales CSV",
   "type": "LOCAL_FOLDER",
+  "provider": "CUSTOM",
+  "base_url": null,
+  "connection_string": null,
+  "api_key": null,
+  "username": null,
+  "password": null,
+  "bucket_name": null,
+  "folder_path": "C:/Data/Sales/sales.csv",
+  "table_name": null,
+  "sync_frequency": "manual"
+}
+```
+
+---
+
+## Cloud Storage Example
+
+> **Note:** The schema supports `CLOUD_STORAGE`, but syncing from cloud storage is **not yet implemented** in the service layer.
+
+```json
+{
+  "name": "AWS S3 Storage",
+  "type": "CLOUD_STORAGE",
+  "provider": "S3",
+  "base_url": null,
+  "connection_string": null,
+  "api_key": "aws_access_key",
+  "username": null,
+  "password": null,
+  "bucket_name": "sales-data",
+  "folder_path": "daily/",
+  "table_name": null,
+  "sync_frequency": "daily"
+}
+```
+
+---
+
+# 4. Get Data Source
+
+## Endpoint
+
+```
+GET /api/data-sources/{data_source_id}
+```
+
+### Example
+
+```
+GET /api/data-sources/1
+```
+
+### Request Body
+
+None.
+
+---
+
+# 5. Update Data Source
+
+## Endpoint
+
+```
+PUT /api/data-sources/{data_source_id}
+```
+
+### Description
+
+Every field is optional.
+
+### Example
+
+```json
+{
+  "name": "Updated Sales API",
+  "sync_frequency": "weekly",
   "status": "active",
-  "sync_frequency": "hourly",
-  ...
+  "health": "healthy"
 }
-POST /api/data-sources/{data_source_id}/sync — Trigger Sync
-Trigger a manual sync for the data source.
+```
 
-Expected 200 OK:
+---
 
-json
+# 6. Delete Data Source
+
+## Endpoint
+
+```
+DELETE /api/data-sources/{data_source_id}
+```
+
+### Request Body
+
+None.
+
+### Example Response
+
+```json
 {
-  "id": 1,
-  "name": "Main CSV Source",
-  "status": "success",
-  "health": "healthy",
-  "last_sync": "2026-07-14T10:35:00.123Z"
+  "deleted": true
 }
-Sync Status:
+```
 
-success — All data validated and stored
+---
 
-partial_success — Some validation errors but data stored
+# 7. Sync Data Source
 
-failed — Sync failed or validation failed completely
+## Endpoint
 
-syncing — Sync in progress
+```
+POST /api/data-sources/{data_source_id}/sync
+```
 
-POST /api/data-sources/{data_source_id}/schedule-sync — Schedule Sync
-Request Body:
+### Description
 
-json
-{
-  "frequency": "hourly"
-}
-Supported Frequencies:
+Immediately starts synchronization.
 
-manual — No automatic sync
+### Request Body
 
-hourly — Every hour at minute 0
+None.
 
-daily — Every day at midnight
+---
 
-weekly — Every Monday at midnight
+# 8. Schedule Sync
 
-monthly — First day of month at midnight
+## Endpoint
 
-realtime — Every 5 minutes
+```
+POST /api/data-sources/{data_source_id}/schedule-sync?frequency=hourly
+```
 
-Expected 200 OK:
+### Description
 
-json
-{
-  "id": 1,
-  "name": "Main CSV Source",
-  "sync_frequency": "hourly",
-  "status": "scheduled"
-}
-GET /api/data-sources/{data_source_id}/health — Health Check
-Expected 200 OK:
+Schedules automatic synchronization.
 
-json
+> **Important:** `frequency` is a **Query Parameter**, **not** a JSON request body.
+
+### Valid Values
+
+```
+manual
+hourly
+daily
+weekly
+monthly
+realtime
+```
+
+### Example
+
+```
+POST /api/data-sources/1/schedule-sync?frequency=daily
+```
+
+---
+
+# 9. Health Check
+
+## Endpoint
+
+```
+GET /api/data-sources/{data_source_id}/health
+```
+
+### Request Body
+
+None.
+
+### Example Response
+
+```json
 {
   "health": "healthy",
   "health_score": 98,
   "status": "success",
-  "last_sync": "2026-07-14T10:35:00.123Z",
+  "last_sync": "2026-07-15T10:00:00",
   "sync_frequency": "hourly"
 }
-Health Status:
+```
 
-healthy — Health score ≥ 80
+---
 
-degraded — Health score 50-79
+# 10. Sync Logs
 
-unhealthy — Health score < 50
+## Endpoint
 
-error — Error occurred
+```
+GET /api/data-sources/{data_source_id}/logs
+```
 
-unknown — No sync data available
+### Request Body
 
-Health Score Calculation:
+None.
 
-Based on last 10 syncs
+### Example Response
 
-Success rate (70% weight)
-
-Average duration (30% weight)
-
-Range: 0-100
-
-GET /api/data-sources/{data_source_id}/logs — View Logs
-Expected 200 OK:
-
-json
+```json
 [
   {
-    "timestamp": "2026-07-14T10:35:00.123Z",
+    "timestamp": "2026-07-15T10:00:00",
     "status": "success",
-    "rows_processed": 1000,
-    "duration_seconds": 2.5,
-    "message": "Processed 1000 rows, 980 validated, 20 failed"
-  },
-  {
-    "timestamp": "2026-07-14T10:30:00.123Z",
-    "status": "failed",
-    "rows_processed": 0,
-    "duration_seconds": 0.5,
-    "message": "Sync failed: No data retrieved"
+    "rows_processed": 1250,
+    "duration_seconds": 4.65,
+    "message": "Sync completed successfully"
   }
 ]
-DELETE /api/data-sources/{data_source_id} — Delete
-Expected 200 OK:
+```
 
-json
-{
-  "deleted": true
-}
-Module 7 — File Uploads (/api/uploads)
-POST /api/uploads/file — Upload a CSV
-Steps:
+---
 
-Expand the endpoint in Swagger
+# Validation Rules
 
-Click "Try it out"
+## Create API
 
-Under "file", click "Choose File" and select your file
+Required Fields
 
-Click "Execute"
+* name
+* type
 
-Supported File Types:
+Optional Fields
 
-.csv — Comma-separated values
+* provider
+* base_url
+* connection_string
+* api_key
+* username
+* password
+* bucket_name
+* folder_path
+* table_name
+* sync_frequency
 
-.xlsx — Excel files
+---
 
-.xls — Excel files (legacy)
+## Update API
 
-.json — JSON files
+All fields are optional.
 
-Expected 200 OK:
+---
 
-json
-{
-  "id": 1,
-  "filename": "demand_forecasting_dataset.csv",
-  "unique_filename": "a1b2c3d4e5f6.csv",
-  "file_path": "media/uploads/csv/a1b2c3d4e5f6.csv",
-  "file_url": "/media/uploads/csv/a1b2c3d4e5f6.csv",
-  "status": "uploaded",
-  "uploaded_by": 1,
-  "uploaded_at": "2026-07-14T10:30:00.123Z"
-}
-Failure — Non-CSV File:
+# Notes
 
-json
-{
-  "detail": "Only CSV files are accepted"
-}
-GET /api/uploads/ — List All Uploads
-Expected 200 OK:
+* `type` must be one of:
 
-json
+  * API
+  * DATABASE
+  * LOCAL_FOLDER
+  * CLOUD_STORAGE
+
+* `provider` must be one of:
+
+  * SAP
+  * MYSQL
+  * POSTGRES
+  * SQLITE
+  * S3
+  * MINIO
+  * SUPPLIER
+  * SALES
+  * INVENTORY
+  * WEATHER
+  * CUSTOM
+
+* `schedule-sync` accepts the frequency as a **query parameter**, not in the request body.
+
+* `sync` does **not** accept a JSON request body.
+
+* `dashboard`, `health`, `logs`, `list`, `get`, and `delete` do **not** require a request body.
+
+* `CLOUD_STORAGE` is defined in the schema but synchronization is not yet implemented.
+
+---
+
+# HTTP Status Codes
+
+| Code | Meaning               |
+| ---- | --------------------- |
+| 200  | Success               |
+| 201  | Created               |
+| 400  | Bad Request           |
+| 401  | Unauthorized          |
+| 404  | Data Source Not Found |
+| 422  | Validation Error      |
+| 500  | Internal Server Error |
+# Mock APIs Module
+
+## Overview
+
+The **Mock APIs** module provides sample datasets that simulate external data sources such as suppliers, products, sales, inventory, weather, orders, and customers.
+
+These endpoints are primarily used for:
+
+- Development
+- UI Integration
+- Backend Testing
+- Report Generation
+- Demand Forecasting Testing
+
+No authentication or external integrations are required to use these endpoints.
+
+---
+
+# Base URL
+
+```
+http://localhost:8000
+```
+
+---
+
+# Available Endpoints
+
+| Method | Endpoint | Description |
+|---------|----------|-------------|
+| GET | `/mock/supplier` | Returns supplier information |
+| GET | `/mock/products` | Returns product details |
+| GET | `/mock/sales` | Returns historical sales data |
+| GET | `/mock/inventory` | Returns inventory details |
+| GET | `/mock/weather` | Returns weather information |
+| GET | `/mock/orders` | Returns customer orders |
+| GET | `/mock/customers` | Returns customer information |
+
+---
+
+# 1. Get Suppliers
+
+## Endpoint
+
+```
+GET /mock/supplier
+```
+
+### Description
+
+Returns a list of suppliers used for procurement and forecasting.
+
+### Response
+
+```json
 [
   {
-    "id": 1,
-    "filename": "demand_forecasting_dataset.csv",
-    "unique_filename": "a1b2c3d4e5f6.csv",
-    "status": "processed",
-    "uploaded_at": "2026-07-14T10:30:00.123Z"
+    "supplier_id": 1,
+    "supplier_name": "ABC Suppliers",
+    "city": "Hyderabad",
+    "country": "India"
   }
 ]
-GET /api/uploads/{upload_id} — Get One Upload
-Expected 200 OK: Single upload record
+```
 
-Nonexistent ID → 404 Not Found:
+---
 
-json
+# 2. Get Products
+
+## Endpoint
+
+```
+GET /mock/products
+```
+
+### Description
+
+Returns available products with category information.
+
+### Response
+
+```json
+[
+  {
+    "product_id": 101,
+    "product_name": "Rice",
+    "category": "Food",
+    "price": 45
+  }
+]
+```
+
+---
+
+# 3. Get Sales
+
+## Endpoint
+
+```
+GET /mock/sales
+```
+
+### Description
+
+Returns historical sales records used for demand forecasting.
+
+### Response
+
+```json
+[
+  {
+    "date": "2026-07-10",
+    "product": "Rice",
+    "quantity": 120,
+    "revenue": 5400
+  }
+]
+```
+
+---
+
+# 4. Get Inventory
+
+## Endpoint
+
+```
+GET /mock/inventory
+```
+
+### Description
+
+Returns current stock availability.
+
+### Response
+
+```json
+[
+  {
+    "product": "Rice",
+    "stock": 450,
+    "warehouse": "Warehouse A"
+  }
+]
+```
+
+---
+
+# 5. Get Weather
+
+## Endpoint
+
+```
+GET /mock/weather
+```
+
+### Description
+
+Returns weather information that may influence demand forecasting.
+
+### Response
+
+```json
 {
-  "detail": "Upload not found"
+  "city": "Hyderabad",
+  "temperature": 32,
+  "humidity": 65,
+  "condition": "Cloudy"
 }
-POST /api/uploads/{upload_id}/process — Process Upload
-Process the uploaded file with validation and store raw data.
+```
 
-Processing Flow:
+---
 
-File format validation
+# 6. Get Orders
 
-Standardize column names (lowercase, underscores)
+## Endpoint
 
-Validate data using ValidationEngine
+```
+GET /mock/orders
+```
 
-Store validation errors with details
+### Description
 
-Store raw data in raw_sales table
+Returns customer order history.
 
-Update upload status
+### Response
 
-Expected 200 OK:
+```json
+[
+  {
+    "order_id": 1001,
+    "customer": "John",
+    "product": "Rice",
+    "quantity": 5,
+    "order_date": "2026-07-10"
+  }
+]
+```
 
-json
-{
-  "id": 1,
-  "filename": "demand_forecasting_dataset.csv",
-  "status": "processed",
-  "uploaded_at": "2026-07-14T10:30:00.123Z"
-}
-Possible Status Values:
+---
 
-processed — All validation passed
+# 7. Get Customers
 
-partial_success — Some validation errors but data stored
+## Endpoint
 
-failed_validation — Too many validation errors
+```
+GET /mock/customers
+```
 
-failed — Processing error
+### Description
 
-DELETE /api/uploads/{upload_id} — Delete Upload
-Deletes both the database record and the physical file.
+Returns customer information.
 
-Expected 200 OK:
+### Response
 
-json
-{
-  "deleted": true
-}
+```json
+[
+  {
+    "customer_id": 1,
+    "name": "John Doe",
+    "city": "Bangalore",
+    "email": "john@example.com"
+  }
+]
+```
+
+---
+
+# HTTP Status Codes
+
+| Status Code | Description |
+|-------------|-------------|
+| 200 | Data retrieved successfully |
+| 404 | Resource not found |
+| 500 | Internal Server Error |
+
+---
+
+# Module Purpose
+
+The Mock APIs module is intended to:
+
+- Simulate third-party systems
+- Test frontend integration
+- Generate reports using sample data
+- Validate forecasting workflows
+- Demonstrate API functionality without external dependencies
+
+---
+
+# Workflow
+
+```
+Client
+   │
+   ▼
+Mock API Endpoint
+   │
+   ▼
+Returns Sample JSON Data
+   │
+   ▼
+Frontend Displays Data
+   │
+   ▼
+Reports & Forecasting Modules Consume Data
+```
+
+---
+
+# Notes
+
+- These endpoints return static or mock data.
+- No database modifications occur.
+- Designed for development and testing purposes.
+- Can be replaced with real integrations (SAP, Salesforce, ERP, CRM, Weather APIs, etc.) in production.
 
 ## Module 8 — Data Processing (`/api/processing`)
 
@@ -1283,60 +1715,402 @@ This creates 3 SKUs across 3 warehouses in 2 regions. Run all subsequent tests a
 
 ## Module 14 — Reports (`/api/reports`)
 
-### POST /api/reports/generate — Generate a Report
+# 1. List Reports
 
-**Test A — Forecast Summary:**
+## Endpoint
+
+```
+GET /api/reports
+```
+
+### Description
+
+Returns all generated reports ordered by newest first.
+
+Supports searching, filtering and pagination.
+
+### Query Parameters
+
+| Parameter | Type | Required | Description |
+|------------|------|----------|-------------|
+| search | string | No | Search report title |
+| category | string | No | Filter by report type |
+| skip | integer | No | Pagination offset |
+| limit | integer | No | Maximum records |
+
+Example
+
+```
+GET /api/reports?search=forecast&category=forecast_summary&skip=0&limit=20
+```
+
+### Response
+
+```json
+[
+  {
+    "id":1,
+    "title":"Forecast Summary",
+    "description":"Monthly Forecast",
+    "report_type":"forecast_summary",
+    "status":"completed",
+    "format":"pdf",
+    "file_size":142356,
+    "page_count":12,
+    "generated_at":"2026-07-15T10:45:22",
+    "created_at":"2026-07-15T10:40:00"
+  }
+]
+```
+
+Status Codes
+
+| Code | Meaning |
+|------|---------|
+|200|Success|
+|401|Unauthorized|
+
+---
+
+# 2. Generate Report
+
+## Endpoint
+
+```
+POST /api/reports/generate
+```
+
+### Description
+
+Generates a new report based on the selected report type and filters.
+
+---
+
+### Supported Report Types
+
+| Report Type | Description |
+|--------------|------------|
+| executive_summary | Executive KPIs |
+| demand_summary | Demand trends |
+| forecast_summary | Forecast report |
+| model_performance | ML model performance |
+| inventory_health | Inventory report |
+| stockout_risk | Stock-out analysis |
+| recommendation_summary | Recommendation report |
+| scenario_comparison | Scenario comparison |
+| full_system | Complete report |
+| custom_report | User-selected sections |
+
+---
+
+### Supported Formats
+
+```
+json
+csv
+pdf
+excel
+```
+
+---
+
+### Request Body
+
 ```json
 {
-  "title": "Weekly Forecast Report",
-  "report_type": "forecast_summary",
-  "format": "json",
-  "parameters": { "limit": 50 }
+  "title":"July Forecast",
+  "description":"Monthly demand report",
+  "report_type":"forecast_summary",
+  "format":"pdf",
+  "parameters":{
+      "sku":"SKU-001",
+      "region":"West",
+      "category":"Electronics",
+      "date_range":"last_30_days",
+      "limit":50
+  }
 }
 ```
 
-**Test B — Inventory Health Report:**
+### Response
+
 ```json
 {
-  "title": "Inventory Health Report",
-  "report_type": "inventory_health",
-  "format": "json"
+    "id":25,
+    "title":"July Forecast",
+    "report_type":"forecast_summary",
+    "status":"completed",
+    "format":"pdf",
+    "summary":"Report generated successfully.",
+    "generated_at":"2026-07-15T11:20:10"
 }
 ```
 
-**Test C — Full System Report:**
+Status Codes
+
+|Code|Meaning|
+|----|-------|
+|200|Generated Successfully|
+|401|Unauthorized|
+|422|Invalid Report Type|
+|500|Internal Server Error|
+
+---
+
+# 3. SKU Performance
+
+## Endpoint
+
+```
+GET /api/reports/sku-performance
+```
+
+### Description
+
+Returns KPI information for every SKU displayed in the Reports dashboard.
+
+### Query Parameter
+
+| Name | Type | Description |
+|------|------|-------------|
+| search | string | Search SKU or Product |
+
+Example
+
+```
+GET /api/reports/sku-performance?search=SKU-204
+```
+
+### Response
+
+```json
+[
+  {
+    "sku":"SKU-204",
+    "product":"ApexFlow Smart Controller",
+    "revenue":842000,
+    "units_sold":42100,
+    "forecast_accuracy":0.961,
+    "yoy_change":0.124
+  }
+]
+```
+
+---
+
+# 4. SKU Details
+
+## Endpoint
+
+```
+GET /api/reports/sku-details/{sku}
+```
+
+### Description
+
+Returns detailed analytics for a specific SKU.
+
+### Path Parameter
+
+| Parameter | Type |
+|------------|------|
+| sku | string |
+
+Example
+
+```
+GET /api/reports/sku-details/SKU-204
+```
+
+### Response
+
 ```json
 {
-  "title": "Full System Report",
-  "report_type": "full_system",
-  "format": "json"
+  "sku":"SKU-204",
+  "product":"ApexFlow Smart Controller",
+  "revenue":842000,
+  "units_sold":42100,
+  "forecast_accuracy":0.961,
+  "yoy_change":0.124,
+  "demand_forecast_12m":[...],
+  "accuracy_trend_12m":[...],
+  "sales_by_region":{},
+  "stock_by_warehouse":{},
+  "monthly_performance":[]
 }
 ```
 
-**Report type options:**
-- `forecast_summary` — all forecasts
-- `inventory_health` — stock, reorder points, excess, transfers, safety stock
-- `recommendation_summary` — procurement/reorder recommendations
-- `scenario_comparison` — all scenarios with run outputs
-- `full_system` — all four combined with executive summary
+Status Codes
 
-**Format options:** `json` or `csv`
+|Code|Meaning|
+|----|-------|
+|200|Success|
+|404|SKU Not Found|
 
-**Expected 200 OK** — fully populated report object with `data` field containing the report content
+---
 
-**Failure:** Invalid `report_type` → 422 Unprocessable Entity
+# 5. Overview Metrics
 
-### GET /api/reports — List All Reports
+## Endpoint
 
-**Expected 200 OK:** Array of report summaries (newest first)
+```
+GET /api/reports/overview-metrics
+```
 
-### GET /api/reports/{report_id} — Get Full Report
+### Description
 
-**Expected 200 OK:** Complete report including data payload
+Returns live KPI cards for the Reports Dashboard.
 
-**Nonexistent ID → 404 Not Found**
+### Query Parameters
 
-### GET /api/reports/{report_id}/download — Download Report
+| Parameter | Description |
+|------------|-------------|
+| region | Region Filter |
+| category | Product Category |
+| date_range | Time Period |
+
+Example
+
+```
+GET /api/reports/overview-metrics?region=West&category=Electronics&date_range=last_30_days
+```
+
+### Response
+
+```json
+{
+    "total_revenue_impact":2640000,
+    "average_forecast_accuracy":0.936,
+    "stockouts_prevented":127,
+    "overstock_reduced":0.184
+}
+```
+
+---
+
+# 6. Get Report
+
+## Endpoint
+
+```
+GET /api/reports/{report_id}
+```
+
+### Description
+
+Returns the complete report payload.
+
+### Path Parameter
+
+| Parameter | Type |
+|------------|------|
+| report_id | integer |
+
+Example
+
+```
+GET /api/reports/12
+```
+
+### Response
+
+```json
+{
+    "id":12,
+    "title":"Forecast Summary",
+    "report_type":"forecast_summary",
+    "status":"completed",
+    "format":"pdf",
+    "parameters":{},
+    "data":{},
+    "summary":"Report generated successfully.",
+    "generated_at":"2026-07-15T10:30:12"
+}
+```
+
+Status Codes
+
+|Code|Meaning|
+|----|-------|
+|200|Success|
+|404|Report Not Found|
+
+---
+
+# 7. Download Report
+
+## Endpoint
+
+```
+GET /api/reports/{report_id}/download
+```
+
+### Description
+
+Downloads the generated report.
+
+Supports overriding the original report format.
+
+### Query Parameter
+
+| Parameter | Description |
+|------------|-------------|
+| format | pdf, csv, excel, json |
+
+Example
+
+```
+GET /api/reports/10/download?format=excel
+```
+
+### Response
+
+Returns a downloadable file.
+
+Supported Formats
+
+- PDF
+- CSV
+- Excel
+- JSON
+
+Content-Disposition
+
+```
+attachment; filename="report_10_forecast_summary.pdf"
+```
+
+Status Codes
+
+|Code|Meaning|
+|----|-------|
+|200|Downloaded Successfully|
+|400|Invalid Format|
+|404|Report Not Found|
+
+---
+
+# Report Status
+
+| Status | Description |
+|---------|-------------|
+| pending | Report created |
+| generating | Report generation in progress |
+| completed | Report generated successfully |
+| failed | Report generation failed |
+
+---
+
+# HTTP Status Codes
+
+| Code | Description |
+|------|-------------|
+|200|Success|
+|400|Bad Request|
+|401|Unauthorized|
+|404|Not Found|
+|422|Validation Error|
+|500|Internal Server Error|
 
 **Expected:** File download attachment
 - `format: "json"` → downloads as `.json` file

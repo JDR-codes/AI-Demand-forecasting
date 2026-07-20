@@ -1,4 +1,5 @@
-# fastapi_app/services/validation/validation_service.py
+#fastapi_app/services/validation.validation_service.py
+
 import pandas as pd
 from sqlalchemy.orm import Session
 import numpy as np
@@ -6,6 +7,11 @@ from typing import Dict, Any, List, Tuple, Optional
 from datetime import datetime
 import re
 import logging
+
+from fastapi_app.models.validation_error_model import ValidationError
+from fastapi_app.models.data_source_model import DataSource
+from fastapi_app.models.upload_model import Upload
+from fastapi_app.models.sync_log_model import SyncLog
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +50,6 @@ class ValidationEngine:
             "columns": list(df.columns)
         }
         
-        # All validation rules - ALL use lowercase column names
         validation_rules = [
             ValidationEngine._validate_required_columns,
             ValidationEngine._validate_data_types,
@@ -71,7 +76,6 @@ class ValidationEngine:
                     "suggestion": "Check validation configuration"
                 })
         
-        # Source-specific validation - ALL lowercase
         source_validators = {
             "sales": ValidationEngine._validate_sales_data,
             "inventory": ValidationEngine._validate_inventory_data,
@@ -87,7 +91,6 @@ class ValidationEngine:
             except Exception as e:
                 logger.error(f"Error in source validation for {source_type}: {str(e)}")
         
-        # Update statistics
         for error in errors:
             if error.get('severity') in ['critical', 'high']:
                 stats['error_count'] += 1
@@ -103,7 +106,6 @@ class ValidationEngine:
         """Validate that required columns exist - ALL LOWERCASE"""
         errors = []
         
-        # ALL COLUMN NAMES ARE LOWERCASE
         required_columns_map = {
             "sales": ["date", "demand", "sku"],
             "inventory": ["sku", "stock", "warehouse"],
@@ -133,7 +135,6 @@ class ValidationEngine:
         """Validate data types - ALL LOWERCASE"""
         errors = []
         
-        # Expected types - ALL LOWERCASE
         type_map = {
             'demand': 'numeric',
             'price': 'numeric',
@@ -164,7 +165,6 @@ class ValidationEngine:
                 numeric_series = pd.to_numeric(df[col], errors='coerce')
                 null_count = numeric_series.isna().sum()
                 if null_count > 0:
-                    # Get sample of invalid values
                     invalid_values = df[col][numeric_series.isna()].head(5).tolist()
                     errors.append({
                         "column_name": col,
@@ -247,7 +247,6 @@ class ValidationEngine:
             try:
                 dates = pd.to_datetime(df[col], errors='coerce')
                 
-                # Check for future dates
                 future_mask = dates > pd.Timestamp.now()
                 if future_mask.any():
                     future_count = future_mask.sum()
@@ -262,7 +261,6 @@ class ValidationEngine:
                         "suggestion": "Future dates may indicate incorrect data entry"
                     })
                 
-                # Check for very old dates
                 min_date = pd.Timestamp('2000-01-01')
                 old_mask = dates < min_date
                 if old_mask.any():
@@ -494,13 +492,9 @@ class ValidationEngine:
         Standardize DataFrame columns for consistent storage.
         MUST BE CALLED BEFORE VALIDATION.
         """
-        # Convert to lowercase and replace spaces with underscores
         df.columns = [col.lower().strip().replace(' ', '_').replace('-', '_') for col in df.columns]
-        
-        # Remove special characters from column names
         df.columns = [re.sub(r'[^a-zA-Z0-9_]', '', col) for col in df.columns]
         
-        # Standardize date columns
         for col in df.columns:
             if any(x in col for x in ['date', 'time', 'updated', 'created']):
                 try:
@@ -508,7 +502,6 @@ class ValidationEngine:
                 except:
                     pass
         
-        # Trim string columns
         for col in df.select_dtypes(include=['object']).columns:
             df[col] = df[col].str.strip() if df[col].dtype == 'object' else df[col]
         
@@ -535,7 +528,7 @@ class ValidationEngine:
 
 
 # ============================================================================
-# HELPER FUNCTIONS - THESE WERE MISSING
+# HELPER FUNCTIONS
 # ============================================================================
 
 def create_validation_error(
@@ -550,14 +543,14 @@ def create_validation_error(
     expected_value: str = None,
     actual_value: str = None,
     error_message: str = None,
-    suggestion: str = None
-) -> Any:
+    suggestion: str = None,
+    datasource_id: int = None,
+    upload_id: int = None,
+    sync_id: int = None
+) -> ValidationError:
     """
-    Create a validation error record.
+    Create a validation error record with proper foreign keys.
     """
-    from fastapi_app.models.validation_error_model import ValidationError
-    from sqlalchemy.orm import Session
-    
     err = ValidationError(
         source=source,
         error_type=error_type,
@@ -569,7 +562,10 @@ def create_validation_error(
         expected_value=expected_value,
         actual_value=actual_value,
         error_message=error_message,
-        suggestion=suggestion
+        suggestion=suggestion,
+        datasource_id=datasource_id,
+        upload_id=upload_id,
+        sync_id=sync_id
     )
     db.add(err)
     db.commit()
@@ -577,52 +573,256 @@ def create_validation_error(
     return err
 
 
-def get_validation_errors(db: Session) -> List[Any]:
-    """Get all validation errors"""
-    from fastapi_app.models.validation_error_model import ValidationError
+def get_validation_errors(
+    db: Session,
+    severity: Optional[str] = None,
+    status: Optional[str] = None,
+    source: Optional[str] = None,
+    start_date: Optional[datetime] = None,
+    end_date: Optional[datetime] = None,
+    limit: int = 50,
+    offset: int = 0
+) -> List[ValidationError]:
+    """Get validation errors with filters."""
+    query = db.query(ValidationError)
     
-    return db.query(ValidationError).all()
+    if severity:
+        query = query.filter(ValidationError.severity == severity)
+    if status:
+        query = query.filter(ValidationError.status == status)
+    if source:
+        query = query.filter(ValidationError.source == source)
+    if start_date:
+        query = query.filter(ValidationError.created_at >= start_date)
+    if end_date:
+        query = query.filter(ValidationError.created_at <= end_date)
+    
+    return query.order_by(ValidationError.created_at.desc()).offset(offset).limit(limit).all()
 
 
-def get_validation_error(db: Session, error_id: int) -> Optional[Any]:
+def get_validation_error(db: Session, error_id: int) -> Optional[ValidationError]:
     """Get a single validation error"""
-    from fastapi_app.models.validation_error_model import ValidationError
-    
     return db.query(ValidationError).filter(ValidationError.id == error_id).first()
 
 
-def fix_validation_error(db: Session, error_id: int, fix_request: dict = None) -> Optional[Any]:
-    """Mark a validation error as fixed"""
-    from fastapi_app.models.validation_error_model import ValidationError
-    
+def fix_validation_error(
+    db: Session, 
+    error_id: int, 
+    fix_request: dict = None,
+    resolved_by: int = None
+) -> Optional[ValidationError]:
+    """
+    Mark a validation error as fixed with resolution tracking.
+    """
     err = get_validation_error(db, error_id)
     if not err:
         return None
+    
     err.status = "fixed"
+    err.is_fixed = True
+    err.resolved_at = datetime.utcnow()
+    err.resolved_by = resolved_by
+    
+    if fix_request:
+        if fix_request.get('comments'):
+            err.fixed_reason = fix_request.get('comments')
+        if fix_request.get('reason'):
+            err.fixed_reason = fix_request.get('reason')
+    
     db.commit()
     db.refresh(err)
     return err
 
 
-def ignore_validation_error(db: Session, error_id: int) -> Optional[Any]:
-    """Mark a validation error as ignored"""
-    from fastapi_app.models.validation_error_model import ValidationError
-    
+def ignore_validation_error(
+    db: Session, 
+    error_id: int,
+    resolved_by: int = None,
+    reason: str = None
+) -> Optional[ValidationError]:
+    """
+    Mark a validation error as ignored with resolution tracking.
+    """
     err = get_validation_error(db, error_id)
     if not err:
         return None
+    
     err.status = "ignored"
+    err.is_ignored = True
+    err.resolved_at = datetime.utcnow()
+    err.resolved_by = resolved_by
+    err.ignored_reason = reason
+    
     db.commit()
     db.refresh(err)
     return err
 
 
-def fix_all_validation_errors(db: Session) -> int:
-    """Mark all validation errors as fixed"""
-    from fastapi_app.models.validation_error_model import ValidationError
+def get_validation_statistics(db: Session) -> Dict[str, Any]:
+    """
+    Get statistics about validation errors.
+    """
+    from sqlalchemy import func
     
-    errors = db.query(ValidationError).all()
-    for err in errors:
-        err.status = "fixed"
+    total = db.query(func.count(ValidationError.id)).scalar() or 0
+    open_count = db.query(func.count(ValidationError.id)).filter(
+        ValidationError.status == "open"
+    ).scalar() or 0
+    fixed_count = db.query(func.count(ValidationError.id)).filter(
+        ValidationError.status == "fixed"
+    ).scalar() or 0
+    ignored_count = db.query(func.count(ValidationError.id)).filter(
+        ValidationError.status == "ignored"
+    ).scalar() or 0
+    
+    by_severity = {}
+    for severity in ['critical', 'high', 'medium', 'low']:
+        count = db.query(func.count(ValidationError.id)).filter(
+            ValidationError.severity == severity
+        ).scalar() or 0
+        by_severity[severity] = count
+    
+    by_source = {}
+    sources = db.query(ValidationError.source).distinct().all()
+    for source in sources:
+        source_name = source[0] if source[0] else "unknown"
+        count = db.query(func.count(ValidationError.id)).filter(
+            ValidationError.source == source_name
+        ).scalar() or 0
+        by_source[source_name] = count
+    
+    # Calculate resolution rate
+    resolved = fixed_count + ignored_count
+    resolution_rate = round((resolved / total) * 100 if total > 0 else 0, 1)
+    
+    return {
+        "total": total,
+        "open": open_count,
+        "fixed": fixed_count,
+        "ignored": ignored_count,
+        "resolved": resolved,
+        "resolution_rate": resolution_rate,
+        "by_severity": by_severity,
+        "by_source": by_source
+    }
+
+
+def create_validation_errors_batch(
+    db: Session,
+    errors: List[Dict[str, Any]],
+    datasource_id: int = None,
+    upload_id: int = None,
+    sync_id: int = None,
+    source_prefix: str = "datasource"
+) -> int:
+    """
+    Create multiple validation errors in a single batch operation.
+    """
+    if not errors:
+        return 0
+    
+    error_objects = []
+    source_id = datasource_id if datasource_id else upload_id
+    source_name = f"{source_prefix}:{source_id}" if source_id else "unknown"
+    
+    for error in errors:
+        err = ValidationError(
+            source=source_name,
+            error_type=error.get('column_name', 'unknown'),
+            severity=error.get('severity', 'medium'),
+            rows_affected=error.get('row_number', 0),
+            status="open",
+            column_name=error.get('column_name'),
+            row_number=error.get('row_number', 0),
+            expected_value=error.get('expected_value', ''),
+            actual_value=error.get('actual_value', ''),
+            error_message=error.get('error_message', ''),
+            suggestion=error.get('suggestion', ''),
+            datasource_id=datasource_id,
+            upload_id=upload_id,
+            sync_id=sync_id
+        )
+        error_objects.append(err)
+    
+    if error_objects:
+        db.bulk_save_objects(error_objects)
+        db.commit()
+        logger.debug(f"Stored {len(error_objects)} validation errors in batch")
+    
+    return len(error_objects)
+
+
+def fix_all_validation_errors(
+    db: Session,
+    resolved_by: int = None,
+    source: Optional[str] = None
+) -> int:
+    """
+    Fix all open validation errors.
+    """
+    query = db.query(ValidationError).filter(
+        ValidationError.status == "open"
+    )
+    if source:
+        query = query.filter(ValidationError.source == source)
+    
+    now = datetime.utcnow()
+    count = query.update({
+        "status": "fixed",
+        "is_fixed": True,
+        "resolved_at": now,
+        "resolved_by": resolved_by
+    })
     db.commit()
-    return len(errors)
+    return count
+
+
+def ignore_all_validation_errors(
+    db: Session,
+    resolved_by: int = None,
+    source: Optional[str] = None,
+    reason: str = None
+) -> int:
+    """
+    Ignore all open validation errors.
+    """
+    query = db.query(ValidationError).filter(
+        ValidationError.status == "open"
+    )
+    if source:
+        query = query.filter(ValidationError.source == source)
+    
+    now = datetime.utcnow()
+    count = query.update({
+        "status": "ignored",
+        "is_ignored": True,
+        "resolved_at": now,
+        "resolved_by": resolved_by,
+        "ignored_reason": reason
+    })
+    db.commit()
+    return count
+
+
+def reopen_all_validation_errors(
+    db: Session,
+    source: Optional[str] = None
+) -> int:
+    """
+    Reopen all fixed or ignored validation errors.
+    """
+    query = db.query(ValidationError).filter(
+        ValidationError.status.in_(["fixed", "ignored"])
+    )
+    if source:
+        query = query.filter(ValidationError.source == source)
+    
+    count = query.update({
+        "status": "open",
+        "is_fixed": False,
+        "is_ignored": False,
+        "resolved_at": None,
+        "resolved_by": None
+    })
+    db.commit()
+    return count

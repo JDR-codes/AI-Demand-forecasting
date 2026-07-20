@@ -2,13 +2,14 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 import traceback
 
+from fastapi import logger
 from sqlalchemy.orm import Session
 
 from fastapi_app.ai.arima import forecast as arima_forecast
 from fastapi_app.models.scenario_model import Scenario
 from fastapi_app.schemas.scenario_schema import ScenarioCreate, ScenarioUpdate
 from fastapi_app.services.forecast.forecast_service import (
-    auto_forecast_report,
+    # ✅ Removed auto_forecast_report - not needed in scenario_service
     load_registered_model,
     prepare_series,
     train_and_register,
@@ -85,47 +86,40 @@ class ScenarioService:
             region = parameters.get("region")
             warehouse = parameters.get("warehouse")
 
-            if model_type == "forecast_engine":
-                forecast_report = auto_forecast_report(path=csv_path, forecast_steps=forecast_steps)
-                forecast_results = {
-                    "type": "forecast_engine",
-                    "report": forecast_report,
-                }
-                forecast_series = forecast_report.get("arima", {}).get("forecast", [])
+            # ✅ Removed "forecast_engine" branch - use specific model types
+            if csv_path:
+                series = prepare_series(path=csv_path)
             else:
-                if csv_path:
-                    series = prepare_series(path=csv_path)
-                else:
-                    raise ValueError("Scenario parameters must include csv_path for forecast execution")
+                raise ValueError("Scenario parameters must include csv_path for forecast execution")
 
-                if model_type == "arima":
-                    model_path = train_and_register(
-                        series.tolist(),
-                        order=tuple(parameters.get("order", (1, 1, 1))),
-                        name="scenario_arima",
-                        model_type="arima",
-                    )
-                    model = load_registered_model(model_path)
-                    forecast_values = arima_forecast(model, forecast_steps)
-                elif model_type == "xgboost":
-                    results = train_xgboost(series.tolist(), n_lags=int(parameters.get("n_lags", 7)))
-                    forecast_values = results["future_predictions"]
-                elif model_type == "lstm":
-                    results = train_lstm(series.tolist(), n_lags=int(parameters.get("n_lags", 7)))
-                    forecast_values = results["future_predictions"]
-                elif model_type == "prophet":
-                    results = train_prophet(series.tolist())
-                    if results.get("error"):
-                        raise RuntimeError(results["error"])
-                    forecast_values = results["future_predictions"]
-                else:
-                    raise ValueError(f"Unsupported model_type: {model_type}")
+            if model_type == "arima":
+                model_path = train_and_register(
+                    series.tolist(),
+                    order=tuple(parameters.get("order", (1, 1, 1))),
+                    name="scenario_arima",
+                    model_type="arima",
+                )
+                model = load_registered_model(model_path)
+                forecast_values = arima_forecast(model, forecast_steps)
+            elif model_type == "xgboost":
+                results = train_xgboost(series.tolist(), n_lags=int(parameters.get("n_lags", 7)))
+                forecast_values = results["future_predictions"]
+            elif model_type == "lstm":
+                results = train_lstm(series.tolist(), n_lags=int(parameters.get("n_lags", 7)))
+                forecast_values = results["future_predictions"]
+            elif model_type == "prophet":
+                results = train_prophet(series.tolist())
+                if results.get("error"):
+                    raise RuntimeError(results["error"])
+                forecast_values = results["future_predictions"]
+            else:
+                raise ValueError(f"Unsupported model_type: {model_type}")
 
-                forecast_results = {
-                    "type": model_type,
-                    "forecast": forecast_values,
-                }
-                forecast_series = forecast_values
+            forecast_results = {
+                "type": model_type,
+                "forecast": forecast_values,
+            }
+            forecast_series = forecast_values
 
             recommendations = recommend_from_series(
                 forecast_series,
@@ -162,3 +156,4 @@ class ScenarioService:
         db.commit()
         db.refresh(scenario)
         return scenario
+    

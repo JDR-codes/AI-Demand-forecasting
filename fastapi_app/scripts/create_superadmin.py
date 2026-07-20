@@ -17,7 +17,13 @@ from fastapi_app.services.auth.auth_service import create_super_admin
 def main():
     name = input("Name: ")
     email = input("Email: ")
-    password = getpass("Password: ")
+
+    while True:
+        password = getpass("Password: ")
+        confirm_password = getpass("Confirm Password: ")
+        if password == confirm_password:
+            break
+        print("Passwords do not match. Please try again.\n")
 
     # ensure DB tables exist (creates missing tables from SQLAlchemy models)
     init_db()
@@ -28,7 +34,8 @@ def main():
         user_data = SuperAdminCreate(
             name=name,
             email=email,
-            password=password
+            password=password,
+            confirm_password=confirm_password
         )
 
         user = create_super_admin(db, user_data)

@@ -1,18 +1,19 @@
 # fastapi_app/services/data_integration/upload_service.py
+"""
+Upload Service - Handles upload CRUD operations and file management.
+"""
 import os
-from typing import List, Optional, Dict, Any
-from sqlalchemy.orm import Session
-import pandas as pd
+import uuid
+import hashlib
 from datetime import datetime
+from typing import Optional, List, Dict, Any
+from sqlalchemy.orm import Session
+from sqlalchemy import desc
 import logging
 
 from fastapi_app.models.upload_model import Upload
-from fastapi_app.models.sync_log_model import SyncLog
-from fastapi_app.models.raw_data_model import RawSales
-from fastapi_app.models.data_source_model import DataSource
-from fastapi_app.services.validation.validation_service import ValidationEngine
-from fastapi_app.services.validation.validation_service import create_validation_error
 from fastapi_app.utils.file_utils import save_uploaded_file, delete_file
+from fastapi_app.core.config import MEDIA_DIR
 
 logger = logging.getLogger(__name__)
 
@@ -21,238 +22,170 @@ def create_upload(
     db: Session,
     filename: str,
     file_bytes: bytes,
-    uploaded_by: int | None = None,
-    folder: str | None = None,
+    uploaded_by: int,
+    folder: Optional[str] = None
 ) -> Upload:
-    """Save uploaded file and create database record."""
-    
+    """
+    Create a new upload record and save the file.
+    """
+    # Save file to disk
     file_info = save_uploaded_file(
         file_bytes=file_bytes,
         filename=filename,
-        folder=folder,
+        folder=folder or "uploads"
     )
-
+    
+    # Generate checksum
+    checksum = hashlib.md5(file_bytes).hexdigest()
+    
+    # Create upload record
     upload = Upload(
-        filename=file_info["original_filename"],
-        unique_filename=file_info["filename"],
+        filename=filename,
+        unique_filename=file_info["unique_filename"],
         file_path=file_info["file_path"],
         file_url=file_info["file_url"],
-        status="uploaded",
+        file_size=file_info["file_size"],
+        mime_type=file_info["mime_type"],
+        checksum=checksum,
+        extension=file_info["extension"],
+        status="pending",
         uploaded_by=uploaded_by,
+        uploaded_at=datetime.utcnow()
     )
-
+    
     db.add(upload)
     db.commit()
     db.refresh(upload)
-
+    
+    logger.info(f"Upload created: {upload.id} - {filename}")
     return upload
 
 
-def get_uploads(db: Session) -> List[Upload]:
-    return db.query(Upload).all()
-
-
-def get_upload(db: Session, upload_id: int) -> Upload | None:
+def get_upload(db: Session, upload_id: int) -> Optional[Upload]:
+    """Get a single upload by ID."""
     return db.query(Upload).filter(Upload.id == upload_id).first()
 
 
+def get_uploads(
+    db: Session,
+    status: Optional[str] = None,
+    limit: int = 50,
+    offset: int = 0
+) -> List[Upload]:
+    """Get uploads with optional filtering."""
+    query = db.query(Upload)
+    if status:
+        query = query.filter(Upload.status == status)
+    return query.order_by(desc(Upload.uploaded_at)).offset(offset).limit(limit).all()
+
+
 def delete_upload(db: Session, upload_id: int) -> bool:
+    """
+    Delete an upload and its associated file.
+    """
     upload = get_upload(db, upload_id)
-    if upload is None:
+    if not upload:
         return False
-
-    if upload.file_path:
+    
+    # Delete file from disk
+    if upload.file_path and os.path.exists(upload.file_path):
         delete_file(upload.file_path)
-
+    
     db.delete(upload)
     db.commit()
+    
+    logger.info(f"Upload deleted: {upload_id}")
     return True
 
 
-def process_upload(db: Session, upload_id: int) -> Upload | None:
+def process_upload(db: Session, upload_id: int) -> Optional[Upload]:
     """
-    Process uploaded file with validation and raw data storage.
-    Follows same flow as data source sync.
+    Process an upload (run validation and store data).
+    This is a synchronous wrapper for the background job.
     """
     upload = get_upload(db, upload_id)
     if not upload:
         return None
-
-    # Create sync log for upload - WITHOUT the new fields
-    sync_log = SyncLog(
-        datasource_id=None,  # Uploads don't have a data source
-        status="running",
-        started_at=datetime.utcnow()
-    )
-    db.add(sync_log)
+    
+    if upload.status == "processed":
+        return upload
+    
+    # Update status
+    upload.status = "processing"
+    upload.processing_status = "processing"
     db.commit()
-
+    
     try:
-        # Check file exists
-        if not os.path.exists(upload.file_path):
-            create_validation_error(
-                db,
-                source=f"upload:{upload.id}",
-                error_type="missing_file",
-                severity="high",
-                rows_affected=0,
-                status="failed",
-                column_name="file",
-                row_number=0,
-                expected_value="file exists",
-                actual_value="missing",
-                error_message="Uploaded file not found on disk",
-                suggestion="Check file permissions and storage"
-            )
-            upload.status = "failed"
-            sync_log.status = "failed"
-            sync_log.message = "File not found"
-            sync_log.completed_at = datetime.utcnow()
-            db.commit()
-            return upload
-
-        # Read the file
-        try:
-            # Support multiple file types
-            if upload.filename.lower().endswith('.csv'):
-                df = pd.read_csv(upload.file_path)
-            elif upload.filename.lower().endswith(('.xlsx', '.xls')):
-                df = pd.read_excel(upload.file_path)
-            elif upload.filename.lower().endswith('.json'):
-                df = pd.read_json(upload.file_path)
-            else:
-                raise ValueError(f"Unsupported file type: {upload.filename}")
-                
-        except Exception as exc:
-            create_validation_error(
-                db,
-                source=f"upload:{upload.id}",
-                error_type="read_error",
-                severity="high",
-                rows_affected=0,
-                status="failed",
-                column_name="file",
-                row_number=0,
-                expected_value="valid file format",
-                actual_value=str(exc),
-                error_message=f"Failed to read file: {str(exc)}",
-                suggestion="Check file format and encoding"
-            )
-            upload.status = "failed"
-            sync_log.status = "failed"
-            sync_log.message = f"File read error: {str(exc)}"
-            sync_log.completed_at = datetime.utcnow()
-            db.commit()
-            return upload
-
-        sync_log.rows_processed = len(df)
-
-        # STANDARDIZE FIRST
-        df = ValidationEngine.standardize_dataframe(df, "sales")
+        # Import here to avoid circular imports
+        from fastapi_app.services.data_integration.upload_job_service import UploadJobService
         
-        # VALIDATE SECOND
-        is_valid, errors, stats = ValidationEngine.validate_dataframe(
-            df, 
-            source_type="sales",
-            source_name=f"upload:{upload.id}",
-            strict_mode=False
-        )
-
-        # Store validation errors with details
-        for error in errors:
-            create_validation_error(
-                db,
-                source=f"upload:{upload.id}",
-                error_type=error.get('column_name', 'unknown'),
-                severity=error.get('severity', 'medium'),
-                rows_affected=stats.get('total_rows', 0),
-                status="open",
-                column_name=error.get('column_name'),
-                row_number=error.get('row_number', 0),
-                expected_value=error.get('expected_value', ''),
-                actual_value=error.get('actual_value', ''),
-                error_message=error.get('error_message', ''),
-                suggestion=error.get('suggestion', '')
-            )
-
-        # Store raw data if valid enough
-        if is_valid or stats['error_count'] < len(df) * 0.5:
-            # Create a virtual data source for upload
-            virtual_ds = DataSource(
-                name=f"Upload_{upload.filename}",
-                type="LOCAL_FOLDER",
-                status="success",
-                health="healthy",
-                last_sync=datetime.utcnow()
-            )
-            db.add(virtual_ds)
-            db.flush()  # Get the ID
-            
-            # Store raw data
-            store_upload_raw_data(db, df, virtual_ds.id, sync_log.id)
-            
-            upload.status = "processed" if is_valid else "partial_success"
-            sync_log.status = "success" if is_valid else "partial_success"
-            sync_log.rows_validated = len(df) - stats['error_count']
-        else:
-            upload.status = "failed_validation"
-            sync_log.status = "failed"
-            sync_log.message = f"Validation failed with {stats['error_count']} errors"
-
-        sync_log.rows_failed = stats['error_count']
-        sync_log.completed_at = datetime.utcnow()
-        sync_log.duration_seconds = (sync_log.completed_at - sync_log.started_at).total_seconds()
-
+        # Create and run job
+        job = UploadJobService.create_job(db, upload_id)
+        UploadJobService.run_job(db, job.job_id)
+        
+        db.refresh(upload)
+        return upload
+        
     except Exception as e:
-        logger.error(f"Error processing upload {upload_id}: {str(e)}")
+        logger.error(f"Failed to process upload {upload_id}: {str(e)}")
         upload.status = "failed"
-        sync_log.status = "failed"
-        sync_log.message = f"Processing error: {str(e)}"
-        sync_log.error_details = str(e)
-        sync_log.completed_at = datetime.utcnow()
-
-    db.commit()
-    db.refresh(upload)
-    return upload
+        upload.processing_status = "failed"
+        db.commit()
+        return upload
 
 
-def store_upload_raw_data(
-    db: Session, 
-    df: pd.DataFrame, 
-    datasource_id: int, 
-    sync_log_id: int
-) -> None:
-    """Store upload data in raw tables."""
-    records = df.to_dict('records')
+def get_upload_preview(db: Session, upload_id: int, rows: int = 20) -> Dict[str, Any]:
+    """
+    Get a preview of the uploaded file.
+    """
+    import pandas as pd
     
-    field_mapping = {
-        "date": "date",
-        "demand": "demand",
-        "revenue": "revenue",
-        "units": "units",
-        "sku": "sku"
+    upload = get_upload(db, upload_id)
+    if not upload:
+        return {"error": "Upload not found"}
+    
+    if not os.path.exists(upload.file_path):
+        return {"error": "File not found on server"}
+    
+    try:
+        if upload.filename.lower().endswith('.csv'):
+            df = pd.read_csv(upload.file_path, nrows=rows)
+        elif upload.filename.lower().endswith(('.xlsx', '.xls')):
+            df = pd.read_excel(upload.file_path, nrows=rows)
+        elif upload.filename.lower().endswith('.json'):
+            df = pd.read_json(upload.file_path)
+        else:
+            return {"error": "Unsupported file format for preview"}
+        
+        return {
+            "columns": df.columns.tolist(),
+            "rows": df.head(rows).to_dict('records'),
+            "row_count": len(df),
+            "upload_id": upload_id,
+            "filename": upload.filename
+        }
+    except Exception as e:
+        return {"error": f"Error reading file: {str(e)}"}
+
+
+def get_upload_stats(db: Session) -> Dict[str, Any]:
+    """
+    Get statistics about uploads.
+    """
+    from sqlalchemy import func
+    
+    total = db.query(func.count(Upload.id)).scalar() or 0
+    pending = db.query(func.count(Upload.id)).filter(Upload.status == "pending").scalar() or 0
+    processed = db.query(func.count(Upload.id)).filter(Upload.status == "processed").scalar() or 0
+    failed = db.query(func.count(Upload.id)).filter(Upload.status == "failed").scalar() or 0
+    
+    total_size = db.query(func.sum(Upload.file_size)).scalar() or 0
+    
+    return {
+        "total": total,
+        "pending": pending,
+        "processed": processed,
+        "failed": failed,
+        "total_size_bytes": total_size,
+        "total_size_mb": round(total_size / (1024 * 1024), 2) if total_size else 0
     }
-    
-    for record in records:
-        mapped_data = {}
-        for source_field, target_field in field_mapping.items():
-            if source_field in record:
-                value = record[source_field]
-                # Convert pandas Timestamp to datetime
-                if hasattr(value, 'to_pydatetime'):
-                    value = value.to_pydatetime()
-                mapped_data[target_field] = value
-        
-        mapped_data['datasource_id'] = datasource_id
-        mapped_data['sync_id'] = sync_log_id
-        mapped_data['raw_data'] = record
-        mapped_data['validation_status'] = "validated"
-        
-        try:
-            obj = RawSales(**mapped_data)
-            db.add(obj)
-        except Exception as e:
-            logger.error(f"Error storing raw data: {str(e)}")
-            continue
-    
-    db.commit()

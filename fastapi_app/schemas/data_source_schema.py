@@ -1,4 +1,4 @@
-# fastapi_app/schemas/data_source_schema.py
+#fastapi_app/schemas/data_source_schema.py
 from pydantic import BaseModel
 from datetime import datetime
 from typing import Optional
@@ -34,7 +34,7 @@ class DataSourceBase(BaseModel):
     password: Optional[str] = None
     bucket_name: Optional[str] = None
     folder_path: Optional[str] = None
-    table_name: Optional[str] = None  # ✅ Added
+    table_name: Optional[str] = None
     sync_frequency: Optional[str] = "manual"
 
 class DataSourceCreate(DataSourceBase):
@@ -51,7 +51,7 @@ class DataSourceUpdate(BaseModel):
     password: Optional[str] = None
     bucket_name: Optional[str] = None
     folder_path: Optional[str] = None
-    table_name: Optional[str] = None  # ✅ Added
+    table_name: Optional[str] = None
     status: Optional[str] = None
     health: Optional[str] = None
     sync_frequency: Optional[str] = None
@@ -62,6 +62,12 @@ class DataSourceOut(DataSourceBase):
     health: str
     last_sync: Optional[datetime]
     created_at: datetime
+    # ✅ New fields
+    record_count: Optional[int] = 0
+    health_score: Optional[float] = 100.0
+    last_sync_duration: Optional[float] = None
+    next_sync: Optional[datetime] = None
+    last_error: Optional[str] = None
 
     class Config:
         from_attributes = True

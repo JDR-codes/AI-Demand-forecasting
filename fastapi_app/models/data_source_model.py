@@ -1,15 +1,17 @@
 # fastapi_app/models/data_source_model.py
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, DateTime, Enum
+from sqlalchemy import Column, Integer, String, DateTime, Enum, Float, Text, BigInteger, Index
 from fastapi_app.db.session import Base
 import enum
 from sqlalchemy.orm import relationship
+
 
 class DataSourceType(str, enum.Enum):
     API = "API"
     DATABASE = "DATABASE"
     CLOUD_STORAGE = "CLOUD_STORAGE"
     LOCAL_FOLDER = "LOCAL_FOLDER"
+
 
 class DataSourceProvider(str, enum.Enum):
     SAP = "SAP"
@@ -23,6 +25,7 @@ class DataSourceProvider(str, enum.Enum):
     INVENTORY = "INVENTORY"
     WEATHER = "WEATHER"
     CUSTOM = "CUSTOM"
+
 
 class DataSource(Base):
     __tablename__ = "data_sources"
@@ -46,9 +49,21 @@ class DataSource(Base):
     last_sync = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     
-    # Relationships with proper back_populates and cascade
+    # New fields for dashboard
+    record_count = Column(BigInteger, default=0)
+    health_score = Column(Float, default=100.0)
+    last_sync_duration = Column(Float, nullable=True)
+    next_sync = Column(DateTime, nullable=True)
+    last_error = Column(Text, nullable=True)
+    
+    # Relationships - ALL properly configured with back_populates
     sync_logs = relationship(
         "SyncLog",
+        back_populates="datasource",
+        cascade="all, delete-orphan"
+    )
+    sync_jobs = relationship(
+        "SyncJob",
         back_populates="datasource",
         cascade="all, delete-orphan"
     )
@@ -71,6 +86,25 @@ class DataSource(Base):
         "RawProducts",
         back_populates="datasource",
         cascade="all, delete-orphan"
+    )
+    validation_errors = relationship(
+        "ValidationError",
+        back_populates="datasource",
+        cascade="all, delete-orphan"
+    )
+    connection_history = relationship(
+        "ConnectionHistory",
+        back_populates="datasource",
+        cascade="all, delete-orphan"
+    )
+
+    __table_args__ = (
+        Index('idx_datasource_status', 'status'),
+        Index('idx_datasource_type', 'type'),
+        Index('idx_datasource_created_at', 'created_at'),
+        Index('idx_datasource_sync_frequency', 'sync_frequency'),
+        Index('idx_datasource_health', 'health'),
+        Index('idx_datasource_health_score', 'health_score'),
     )
 
     def __repr__(self):

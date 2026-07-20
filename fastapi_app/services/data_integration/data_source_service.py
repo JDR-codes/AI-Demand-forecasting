@@ -1,4 +1,4 @@
-# fastapi_app/services/data_integration/data_source_service.py
+#fastapi_app/data_integration/data_source_service.py
 from datetime import datetime, timedelta
 from typing import List, Optional, Dict, Any
 from sqlalchemy.orm import Session
@@ -18,11 +18,13 @@ from fastapi_app.services.connectors import (
     fetch_api,
     fetch_csv,
     fetch_mysql_table,
-    # fetch_postgres_table,
     fetch_sqlite_table
 )
 from fastapi_app.services.validation.validation_service import ValidationEngine
 from fastapi_app.services.validation.validation_service import create_validation_error
+from fastapi_app.services.notifications.notification_service import NotificationService
+from fastapi_app.models.auth_model import User
+from fastapi_app.services.data_integration.test_connection_service import TestConnectionService
 
 logger = logging.getLogger(__name__)
 
@@ -67,34 +69,35 @@ def delete_data_source(db: Session, data_source_id: int) -> bool:
     db.commit()
     return True
 
+def test_connection(db: Session, data_source_id: int) -> Dict[str, Any]:
+    """Test connection for a data source."""
+    ds = get_data_source(db, data_source_id)
+    if not ds:
+        return {"success": False, "message": "Data source not found"}
+    
+    return TestConnectionService.test_connection(ds)
+
 def schedule_sync_data_source(db: Session, data_source_id: int, frequency: str = None) -> Optional[DataSource]:
-    """
-    Schedule a data source sync with the scheduler.
-    """
+    """Schedule a data source sync with the scheduler."""
     ds = get_data_source(db, data_source_id)
     if not ds:
         return None
     
-    # If frequency is provided, update it
     if frequency:
         ds.sync_frequency = frequency
     
-    # Update status
     ds.status = "scheduled"
     db.commit()
     db.refresh(ds)
     
-    # Actually schedule the sync with the scheduler
     if ds.sync_frequency and ds.sync_frequency != "manual":
         scheduler.schedule_sync(ds.id, ds.sync_frequency)
         logger.info(f"Scheduled sync for data source {ds.id} with frequency {ds.sync_frequency}")
     else:
-        # Remove from scheduler if frequency is manual
         scheduler.remove_sync(ds.id)
         logger.info(f"Removed sync schedule for data source {ds.id}")
     
     return ds
-
 
 def get_data_source_health(db: Session, data_source_id: int) -> Optional[Dict[str, Any]]:
     """Get health information for a data source"""
@@ -102,7 +105,6 @@ def get_data_source_health(db: Session, data_source_id: int) -> Optional[Dict[st
     if not ds:
         return None
     
-    # Calculate health score
     health_score = 100
     if ds.status == "failed":
         health_score -= 40
@@ -125,7 +127,6 @@ def get_data_source_logs(db: Session, data_source_id: int) -> List[Dict[str, Any
     if not ds:
         return []
     
-    # Get recent sync logs
     logs = db.query(SyncLog).filter(
         SyncLog.datasource_id == data_source_id
     ).order_by(SyncLog.started_at.desc()).limit(10).all()
@@ -146,30 +147,20 @@ def get_data_source_logs(db: Session, data_source_id: int) -> List[Dict[str, Any
 # ============================================================================
 
 def get_data_source_dashboard_metrics(db: Session) -> DataSourceDashboardMetrics:
-    """
-    Get dashboard metrics for data sources.
-    Returns exactly the format needed for the UI.
-    """
+    """Get dashboard metrics for data sources."""
     
-    # 1. Total Records (sum of all raw data tables)
     total_records = 0
     raw_tables = [RawSales, RawInventory, RawSupplier, RawProducts]
     for table in raw_tables:
         count = db.query(func.count(table.id)).scalar() or 0
         total_records += count
     
-    # 2. Active Connections (status is 'success', 'syncing', 'active', or 'connected')
     active_connections = db.query(DataSource).filter(
         DataSource.status.in_(["success", "syncing", "active", "connected"])
     ).count()
     
-    # 3. Total Connections
     total_connections = db.query(DataSource).count()
-    
-    # 4. Sync Frequency (summary)
     sync_frequency = get_sync_frequency_summary(db)
-    
-    # 5. Validation Errors (open errors)
     validation_errors = db.query(ValidationError).filter(
         ValidationError.status == "open"
     ).count()
@@ -183,16 +174,12 @@ def get_data_source_dashboard_metrics(db: Session) -> DataSourceDashboardMetrics
     )
 
 def get_sync_frequency_summary(db: Session) -> str:
-    """
-    Calculate the sync frequency summary.
-    Returns the most common frequency or '<5 min' for real-time.
-    """
+    """Calculate the sync frequency summary."""
     sources = db.query(DataSource).all()
     
     if not sources:
         return "N/A"
     
-    # Check for real-time sources
     realtime_count = db.query(DataSource).filter(
         DataSource.sync_frequency == "realtime"
     ).count()
@@ -200,7 +187,6 @@ def get_sync_frequency_summary(db: Session) -> str:
     if realtime_count > 0:
         return "<5 min"
     
-    # Check for hourly sources
     hourly_count = db.query(DataSource).filter(
         DataSource.sync_frequency == "hourly"
     ).count()
@@ -208,7 +194,6 @@ def get_sync_frequency_summary(db: Session) -> str:
     if hourly_count > 0:
         return "~1 hour"
     
-    # Get most common frequency
     frequency_counts = {}
     for source in sources:
         freq = source.sync_frequency or "manual"
@@ -235,20 +220,18 @@ def get_sync_frequency_summary(db: Session) -> str:
 # ============================================================================
 
 def sync_data_source(db: Session, data_source_id: int, triggered_by: str = "manual") -> Optional[DataSource]:
-    """
-    Sync data from a data source with full transaction support.
-    """
+    """Sync data from a data source with full transaction support."""
     from sqlalchemy.exc import SQLAlchemyError
     
     ds = get_data_source(db, data_source_id)
     if not ds:
         return None
     
-    # Create sync log - WITHOUT the new fields
     sync_log = SyncLog(
         datasource_id=ds.id,
         status="running",
-        started_at=datetime.utcnow()
+        started_at=datetime.utcnow(),
+        triggered_by=triggered_by
     )
     db.add(sync_log)
     db.flush()
@@ -260,9 +243,9 @@ def sync_data_source(db: Session, data_source_id: int, triggered_by: str = "manu
     start_time = time.time()
     error_count = 0
     
+    validation_errors_batch = []
+    
     try:
-        # BEGIN TRANSACTION
-        # Fetch data
         data = fetch_data_from_source(ds)
         sync_log.rows_processed = len(data) if data else 0
         
@@ -271,52 +254,96 @@ def sync_data_source(db: Session, data_source_id: int, triggered_by: str = "manu
             sync_log.message = "No data retrieved"
             ds.status = "failed"
             ds.health = "unhealthy"
+            
+            admin_users = db.query(User).filter(User.is_admin == True).all()
+            for admin in admin_users:
+                NotificationService.create_sync_notification(
+                    db=db,
+                    user_id=admin.id,
+                    datasource_name=ds.name,
+                    success=False,
+                    message=f"Data source '{ds.name}' sync failed: No data retrieved"
+                )
         else:
-            # Convert to DataFrame
             df = pd.DataFrame(data)
             
-            # STANDARDIZE FIRST
             source_type = get_source_type_name(ds.provider)
             df = ValidationEngine.standardize_dataframe(df, source_type)
             
-            # VALIDATE SECOND
             is_valid, errors, stats = ValidationEngine.validate_dataframe(
                 df, source_type, ds.name
             )
             
-            # Store validation errors with details
             for error in errors:
-                create_validation_error(
-                    db,
-                    source=f"datasource:{ds.id}",
-                    error_type=error.get('column_name', 'unknown'),
-                    severity=error.get('severity', 'medium'),
-                    rows_affected=error.get('row_number', 0),
-                    status="open",
-                    column_name=error.get('column_name'),
-                    row_number=error.get('row_number', 0),
-                    expected_value=error.get('expected_value', ''),
-                    actual_value=error.get('actual_value', ''),
-                    error_message=error.get('error_message', ''),
-                    suggestion=error.get('suggestion', '')
-                )
+                validation_errors_batch.append({
+                    "source": f"datasource:{ds.id}",
+                    "error_type": error.get('column_name', 'unknown'),
+                    "severity": error.get('severity', 'medium'),
+                    "rows_affected": error.get('row_number', 0),
+                    "status": "open",
+                    "column_name": error.get('column_name'),
+                    "row_number": error.get('row_number', 0),
+                    "expected_value": error.get('expected_value', ''),
+                    "actual_value": error.get('actual_value', ''),
+                    "error_message": error.get('error_message', ''),
+                    "suggestion": error.get('suggestion', ''),
+                    "datasource_id": ds.id,
+                    "sync_id": sync_log.id
+                })
             
-            # Store data in transaction
+            if validation_errors_batch:
+                for error_data in validation_errors_batch:
+                    create_validation_error(
+                        db,
+                        source=error_data["source"],
+                        error_type=error_data["error_type"],
+                        severity=error_data["severity"],
+                        rows_affected=error_data["rows_affected"],
+                        status=error_data["status"],
+                        column_name=error_data["column_name"],
+                        row_number=error_data["row_number"],
+                        expected_value=error_data["expected_value"],
+                        actual_value=error_data["actual_value"],
+                        error_message=error_data["error_message"],
+                        suggestion=error_data["suggestion"],
+                        datasource_id=error_data["datasource_id"],
+                        sync_id=error_data["sync_id"]
+                    )
+                db.commit()
+            
             if is_valid or len(errors) < len(df) * 0.5:
-                # Store raw data - all inserts happen in one transaction
-                store_raw_data(db, df, ds.id, sync_log.id, source_type)
+                store_raw_data_batch(db, df, ds.id, sync_log.id, source_type)
                 
-                # Calculate health based on last 10 syncs
                 health_score = calculate_health_score(db, ds.id)
                 ds.health = "healthy" if health_score >= 80 else "degraded" if health_score >= 50 else "unhealthy"
                 ds.status = "success" if is_valid else "partial_success"
                 sync_log.status = "success" if is_valid else "partial_success"
                 sync_log.rows_validated = len(df) - len(errors)
+                
+                admin_users = db.query(User).filter(User.is_admin == True).all()
+                for admin in admin_users:
+                    NotificationService.create_sync_notification(
+                        db=db,
+                        user_id=admin.id,
+                        datasource_name=ds.name,
+                        success=True,
+                        message=f"Data source '{ds.name}' synced successfully. {len(data)} records processed."
+                    )
             else:
                 ds.status = "failed"
                 ds.health = "unhealthy"
                 sync_log.status = "failed"
                 sync_log.message = f"Validation failed with {len(errors)} errors"
+                
+                admin_users = db.query(User).filter(User.is_admin == True).all()
+                for admin in admin_users:
+                    NotificationService.create_sync_notification(
+                        db=db,
+                        user_id=admin.id,
+                        datasource_name=ds.name,
+                        success=False,
+                        message=f"Data source '{ds.name}' sync failed: Validation failed with {len(errors)} errors"
+                    )
             
             sync_log.rows_failed = len(errors)
             ds.last_sync = datetime.utcnow()
@@ -324,11 +351,9 @@ def sync_data_source(db: Session, data_source_id: int, triggered_by: str = "manu
         sync_log.completed_at = datetime.utcnow()
         sync_log.duration_seconds = time.time() - start_time
         
-        # COMMIT TRANSACTION (all or nothing)
         db.commit()
         
     except SQLAlchemyError as e:
-        # ROLLBACK on database error
         db.rollback()
         logger.error(f"Database error syncing data source {ds.id}: {str(e)}")
         ds.status = "failed"
@@ -340,8 +365,17 @@ def sync_data_source(db: Session, data_source_id: int, triggered_by: str = "manu
         sync_log.duration_seconds = time.time() - start_time
         db.commit()
         
+        admin_users = db.query(User).filter(User.is_admin == True).all()
+        for admin in admin_users:
+            NotificationService.create_sync_notification(
+                db=db,
+                user_id=admin.id,
+                datasource_name=ds.name,
+                success=False,
+                message=f"Data source '{ds.name}' sync failed: Database error - {str(e)}"
+            )
+        
     except Exception as e:
-        # ROLLBACK on any error
         db.rollback()
         logger.error(f"Error syncing data source {ds.id}: {str(e)}")
         ds.status = "failed"
@@ -352,10 +386,19 @@ def sync_data_source(db: Session, data_source_id: int, triggered_by: str = "manu
         sync_log.completed_at = datetime.utcnow()
         sync_log.duration_seconds = time.time() - start_time
         db.commit()
+        
+        admin_users = db.query(User).filter(User.is_admin == True).all()
+        for admin in admin_users:
+            NotificationService.create_sync_notification(
+                db=db,
+                user_id=admin.id,
+                datasource_name=ds.name,
+                success=False,
+                message=f"Data source '{ds.name}' sync failed: {str(e)}"
+            )
     
     db.refresh(ds)
     return ds
-
 
 def calculate_health_score(db: Session, datasource_id: int) -> float:
     """Calculate health score based on last 10 syncs."""
@@ -366,26 +409,20 @@ def calculate_health_score(db: Session, datasource_id: int) -> float:
     if not recent_syncs:
         return 100.0
     
-    # Calculate metrics
     total_syncs = len(recent_syncs)
     successful_syncs = sum(1 for s in recent_syncs if s.status == "success")
     total_duration = sum(s.duration_seconds or 0 for s in recent_syncs)
     avg_duration = total_duration / total_syncs if total_syncs > 0 else 0
     
-    # Weighted scoring
     success_rate = (successful_syncs / total_syncs) * 100
-    duration_score = max(0, 100 - (avg_duration / 10))  # 10 seconds = 100%, 60 seconds = 40%
+    duration_score = max(0, 100 - (avg_duration / 10))
     
-    # Combined score
     health_score = (success_rate * 0.7) + (duration_score * 0.3)
     
     return min(100, health_score)
 
-
 def fetch_data_from_source(ds: DataSource) -> Optional[List[Dict[str, Any]]]:
-    """
-    Fetch data based on data source type.
-    """
+    """Fetch data based on data source type."""
     try:
         if ds.type == DataSourceType.API:
             if not ds.base_url:
@@ -395,7 +432,6 @@ def fetch_data_from_source(ds: DataSource) -> Optional[List[Dict[str, Any]]]:
             if ds.api_key:
                 headers['Authorization'] = f'Bearer {ds.api_key}'
             
-            # Add provider-specific headers
             if ds.provider == "SUPPLIER":
                 headers['X-Supplier-API-Version'] = 'v2'
             
@@ -405,10 +441,8 @@ def fetch_data_from_source(ds: DataSource) -> Optional[List[Dict[str, Any]]]:
             if not ds.connection_string:
                 raise ValueError("Database data source requires connection_string")
             
-            # Use table_name from the data source
             table_name = ds.table_name
             if not table_name:
-                # Try to infer from provider
                 provider_table_map = {
                     "SAP": "sales",
                     "MYSQL": "sales",
@@ -419,8 +453,6 @@ def fetch_data_from_source(ds: DataSource) -> Optional[List[Dict[str, Any]]]:
             
             if ds.provider == "MYSQL":
                 return fetch_mysql_table(ds.connection_string, table_name)
-            # elif ds.provider == "POSTGRES":
-            #     return fetch_postgres_table(ds.connection_string, table_name)
             elif ds.provider == "SQLITE":
                 return fetch_sqlite_table(ds.connection_string, table_name)
             else:
@@ -430,21 +462,17 @@ def fetch_data_from_source(ds: DataSource) -> Optional[List[Dict[str, Any]]]:
             if not ds.folder_path:
                 raise ValueError("Folder data source requires folder_path")
             
-            # If folder_path is a file path, read it
             if ds.folder_path.lower().endswith('.csv'):
                 return fetch_csv(ds.folder_path)
             else:
-                # Read all CSVs in folder
                 from fastapi_app.services.connectors.folder_connector import fetch_all_csvs_in_folder
                 result = fetch_all_csvs_in_folder(ds.folder_path)
-                # Combine all data
                 all_data = []
                 for file_data in result.values():
                     all_data.extend(file_data)
                 return all_data
                 
         elif ds.type == DataSourceType.CLOUD_STORAGE:
-            # TODO: Implement MinIO/S3 connector
             raise NotImplementedError("Cloud storage connector not yet implemented")
             
         else:
@@ -464,11 +492,9 @@ def get_source_type_name(provider: str) -> str:
     }
     return type_map.get(str(provider).upper(), "api")
 
-def store_raw_data(db: Session, df: pd.DataFrame, datasource_id: int, 
-                  sync_log_id: int, source_type: str) -> None:
-    """
-    Store validated data in appropriate raw tables.
-    """
+def store_raw_data_batch(db: Session, df: pd.DataFrame, datasource_id: int, 
+                         sync_log_id: int, source_type: str, batch_size: int = 1000) -> None:
+    """Store validated data in appropriate raw tables using BATCH operations."""
     records = df.to_dict('records')
     
     model_map = {
@@ -514,6 +540,9 @@ def store_raw_data(db: Session, df: pd.DataFrame, datasource_id: int,
     
     mapping = field_mapping.get(source_type, {})
     
+    objects_to_add = []
+    total_objects = 0
+    
     for record in records:
         mapped_data = {}
         for source_field, target_field in mapping.items():
@@ -523,27 +552,79 @@ def store_raw_data(db: Session, df: pd.DataFrame, datasource_id: int,
         mapped_data['datasource_id'] = datasource_id
         mapped_data['sync_id'] = sync_log_id
         
-        # Convert record to JSON-serializable format
-        # Fix: Convert Timestamp objects to strings
         raw_record = {}
         for key, value in record.items():
-            if hasattr(value, 'to_pydatetime'):  # pandas Timestamp
+            if hasattr(value, 'to_pydatetime'):
                 raw_record[key] = value.isoformat()
-            elif hasattr(value, 'tolist'):  # numpy array
+            elif hasattr(value, 'tolist'):
                 raw_record[key] = value.tolist()
-            elif hasattr(value, 'item'):  # numpy scalar
+            elif hasattr(value, 'item'):
                 raw_record[key] = value.item()
             else:
                 raw_record[key] = value
         
-        mapped_data['raw_data'] = raw_record  # Store cleaned record as JSON
+        mapped_data['raw_data'] = raw_record
         mapped_data['validation_status'] = "validated"
         
         try:
             obj = model_class(**mapped_data)
-            db.add(obj)
+            objects_to_add.append(obj)
+            total_objects += 1
+            
+            if len(objects_to_add) >= batch_size:
+                db.add_all(objects_to_add)
+                db.commit()
+                logger.debug(f"Stored batch of {len(objects_to_add)} records")
+                objects_to_add = []
+                
         except Exception as e:
             logger.error(f"Error storing raw data: {str(e)}")
             continue
     
-    db.commit()
+    if objects_to_add:
+        db.add_all(objects_to_add)
+        db.commit()
+        logger.debug(f"Stored final batch of {len(objects_to_add)} records")
+    
+    logger.info(f"Stored {total_objects} records in {source_type} table")
+
+def store_raw_data(db: Session, df: pd.DataFrame, datasource_id: int, 
+                   sync_log_id: int, source_type: str) -> None:
+    """Legacy wrapper for store_raw_data_batch."""
+    return store_raw_data_batch(db, df, datasource_id, sync_log_id, source_type)
+
+def create_validation_errors_batch(
+    db: Session,
+    errors: List[Dict[str, Any]],
+    datasource_id: int,
+    sync_id: int
+) -> None:
+    """Create multiple validation errors in a single batch operation."""
+    from fastapi_app.models.validation_error_model import ValidationError
+    
+    if not errors:
+        return
+    
+    error_objects = []
+    for error in errors:
+        err = ValidationError(
+            source=f"datasource:{datasource_id}",
+            error_type=error.get('column_name', 'unknown'),
+            severity=error.get('severity', 'medium'),
+            rows_affected=error.get('row_number', 0),
+            status="open",
+            column_name=error.get('column_name'),
+            row_number=error.get('row_number', 0),
+            expected_value=error.get('expected_value', ''),
+            actual_value=error.get('actual_value', ''),
+            error_message=error.get('error_message', ''),
+            suggestion=error.get('suggestion', ''),
+            datasource_id=datasource_id,
+            sync_id=sync_id
+        )
+        error_objects.append(err)
+    
+    if error_objects:
+        db.bulk_save_objects(error_objects)
+        db.commit()
+        logger.debug(f"Stored {len(error_objects)} validation errors")

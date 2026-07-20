@@ -7,7 +7,8 @@ from typing import Any, Dict, List, Optional
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from fastapi_app.models.forecast_model import Forecast
+# ✅ Fixed: Changed Forecast to ForecastJob and ForecastResult
+from fastapi_app.models.forecast_job_model import ForecastJob, ForecastResult
 from fastapi_app.models.inventory_model import (
     InventorySKU,
     ExcessStock,
@@ -104,11 +105,12 @@ def _calculate_report_kpi_cards(
         total_impact = 2640000.0
 
     # 2. Average Forecast Accuracy
-    accuracy_q = db.query(func.avg(Forecast.confidence_score))
+    # ✅ Fixed: Use ForecastResult instead of Forecast
+    accuracy_q = db.query(func.avg(ForecastResult.confidence_score))
     if region:
-        accuracy_q = accuracy_q.filter(Forecast.region == region)
-    accuracy_q = _apply_category_filter(db, accuracy_q, Forecast.sku, category)
-    accuracy_q = _apply_date_filter(accuracy_q, Forecast.forecast_date, date_range)
+        accuracy_q = accuracy_q.filter(ForecastResult.region == region)
+    accuracy_q = _apply_category_filter(db, accuracy_q, ForecastResult.sku, category)
+    accuracy_q = _apply_date_filter(accuracy_q, ForecastResult.forecast_date, date_range)
     accuracy = accuracy_q.scalar() or 0.0
     if accuracy == 0.0:
         accuracy = 0.936
@@ -125,7 +127,6 @@ def _calculate_report_kpi_cards(
         ReorderPoint.reorder_status == "SAFE"
     )
     if region:
-        # ReorderPoint has no `region` column, only `warehouse` — mapped as the closest equivalent.
         reorders_count_q = reorders_count_q.filter(ReorderPoint.warehouse == region)
     reorders_count_q = _apply_category_filter(db, reorders_count_q, ReorderPoint.sku, category)
     reorders_count_q = _apply_date_filter(reorders_count_q, ReorderPoint.created_at, date_range)
@@ -163,31 +164,30 @@ def _calculate_report_kpi_cards(
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _generate_forecast_summary(db: Session, params: Dict[str, Any]) -> Dict[str, Any]:
-    q = db.query(Forecast)
+    # ✅ Fixed: Use ForecastResult instead of Forecast
+    q = db.query(ForecastResult)
     if params.get("sku"):
-        q = q.filter(Forecast.sku == params["sku"])
+        q = q.filter(ForecastResult.sku == params["sku"])
     if params.get("warehouse"):
-        q = q.filter(Forecast.warehouse == params["warehouse"])
+        q = q.filter(ForecastResult.warehouse == params["warehouse"])
     if params.get("region"):
-        q = q.filter(Forecast.region == params["region"])
+        q = q.filter(ForecastResult.region == params["region"])
         
-    # Apply category filter
     category = params.get("category")
-    q = _apply_category_filter(db, q, Forecast.sku, category)
+    q = _apply_category_filter(db, q, ForecastResult.sku, category)
     
-    # Apply date range filter
     date_range = params.get("date_range") or params.get("timeframe")
-    q = _apply_date_filter(q, Forecast.forecast_date, date_range)
+    q = _apply_date_filter(q, ForecastResult.forecast_date, date_range)
 
     limit = int(params.get("limit", 100))
-    forecasts = q.order_by(Forecast.created_at.desc()).limit(limit).all()
+    results = q.order_by(ForecastResult.created_at.desc()).limit(limit).all()
 
-    rows = [_row_to_dict(f) for f in forecasts]
+    rows = [_row_to_dict(r) for r in results]
     total = len(rows)
-    avg_demand = (sum(r["predicted_demand"] for r in rows) / total) if total else 0
+    avg_demand = (sum(r["prediction"] for r in rows) / total) if total else 0
     confidence_values = [r["confidence_score"] for r in rows if r.get("confidence_score") is not None]
     avg_confidence = (sum(confidence_values) / len(confidence_values)) if confidence_values else 0
-    models_used = list({r["model_used"] for r in rows})
+    models_used = list({r["model_used"] for r in rows if r.get("model_used")})
 
     return {
         "report_type": "forecast_summary",
@@ -271,11 +271,9 @@ def _generate_recommendation_summary(db: Session, params: Dict[str, Any]) -> Dic
     if params.get("priority"):
         q = q.filter(Recommendation.priority == params["priority"])
         
-    # Apply category filter
     category = params.get("category")
     q = _apply_category_filter(db, q, Recommendation.sku, category)
     
-    # Apply date range filter
     date_range = params.get("date_range") or params.get("timeframe")
     q = _apply_date_filter(q, Recommendation.created_at, date_range)
 
@@ -311,7 +309,6 @@ def _generate_scenario_comparison(db: Session, params: Dict[str, Any]) -> Dict[s
     completed = [s for s in scenarios if s.get("status") == "completed"]
     failed = [s for s in scenarios if s.get("last_run_status") == "failed"]
 
-    # Extract forecast results from last_run_output for comparison
     comparison = []
     for s in scenarios:
         output = s.get("last_run_output") or {}
@@ -378,15 +375,15 @@ def _generate_full_system(db: Session, params: Dict[str, Any]) -> Dict[str, Any]
 
 
 def _generate_demand_summary(db: Session, params: Dict[str, Any]) -> Dict[str, Any]:
-    # Group forecasts by month
-    forecasts = db.query(Forecast).order_by(Forecast.forecast_date.asc()).all()
+    # ✅ Fixed: Use ForecastResult instead of Forecast
+    results = db.query(ForecastResult).order_by(ForecastResult.forecast_date.asc()).all()
     monthly_data = {}
     months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
-    for f in forecasts:
-        m = f.forecast_date.strftime("%b")
+    for r in results:
+        m = r.forecast_date.strftime("%b")
         if m not in monthly_data:
             monthly_data[m] = {"forecast": 0.0, "actual": 0.0, "count": 0}
-        monthly_data[m]["forecast"] += f.predicted_demand
+        monthly_data[m]["forecast"] += r.prediction
         monthly_data[m]["count"] += 1
     
     for m in monthly_data:
@@ -406,22 +403,23 @@ def _generate_demand_summary(db: Session, params: Dict[str, Any]) -> Dict[str, A
         "report_type": "demand_summary",
         "generated_at": datetime.utcnow().isoformat(),
         "filters": params,
-        "total_records": len(forecasts),
+        "total_records": len(results),
         "summary_trend": trend
     }
 
 
 def _generate_model_performance(db: Session, params: Dict[str, Any]) -> Dict[str, Any]:
-    forecasts = db.query(Forecast).all()
-    models = list({f.model_used for f in forecasts if f.model_used})
+    # ✅ Fixed: Use ForecastResult instead of Forecast
+    results = db.query(ForecastResult).all()
+    models = list({r.model_used for r in results if r.model_used})
     
     model_stats = {}
     for m in models:
-        m_forecasts = [f for f in forecasts if f.model_used == m]
-        scores = [f.confidence_score for f in m_forecasts if f.confidence_score is not None]
+        m_results = [r for r in results if r.model_used == m]
+        scores = [r.confidence_score for r in m_results if r.confidence_score is not None]
         avg_conf = sum(scores) / len(scores) if scores else 0.85
         model_stats[m] = {
-            "records": len(m_forecasts),
+            "records": len(m_results),
             "average_confidence": round(avg_conf, 4),
             "mean_absolute_error": round(15.4 * (1.0 - avg_conf), 2),
             "root_mean_squared_error": round(22.1 * (1.0 - avg_conf), 2)
@@ -457,7 +455,8 @@ def _generate_stockout_risk(db: Session, params: Dict[str, Any]) -> Dict[str, An
 
 
 def _generate_custom_report(db: Session, params: Dict[str, Any]) -> Dict[str, Any]:
-    forecast_count = db.query(Forecast).count()
+    # ✅ Fixed: Use ForecastResult instead of Forecast
+    forecast_count = db.query(ForecastResult).count()
     inventory_count = db.query(WarehouseInventory).count()
     return {
         "report_type": "custom_report",
@@ -531,10 +530,8 @@ def _generate_pdf_bytes(report_title: str, report_data: Dict[str, Any]) -> bytes
         if isinstance(v, list) and v and isinstance(v[0], dict):
             headers = list(v[0].keys())
 
-            # Available width = page width minus left/right margins (40pt each on 'letter').
             available_width = doc.pagesize[0] - doc.leftMargin - doc.rightMargin
             num_cols = len(headers)
-            # Shrink font for wide tables so text still fits comfortably per column.
             table_font_size = 9 if num_cols <= 5 else (7 if num_cols <= 8 else 6)
             table_body_style = ParagraphStyle(
                 'ReportTableBody',
@@ -635,7 +632,6 @@ def _flatten_for_csv(data: Dict[str, Any]) -> List[Dict[str, Any]]:
     for val in data.values():
         if isinstance(val, list) and val and isinstance(val[0], dict):
             return val
-    # Fallback: top-level scalars as a single row
     return [{k: v for k, v in data.items() if not isinstance(v, (dict, list))}]
 
 
@@ -682,12 +678,6 @@ class ReportService:
         category: Optional[str] = None,
         date_range: Optional[str] = None,
     ) -> Dict[str, Any]:
-        """
-        Live KPI cards for the Reports landing page header.
-        Computed fresh from current DB state — not tied to any specific
-        generated report, unlike the frozen kpi_cards stored on each Report.
-        Optionally scoped to a region / category / date_range.
-        """
         return _calculate_report_kpi_cards(
             db, region=region, category=category, date_range=date_range
         )
@@ -718,11 +708,12 @@ class ReportService:
             if search and not (search.lower() in sku.sku.lower() or (sku.description and search.lower() in sku.description.lower())):
                 continue
             
-            demands = db.query(Forecast.predicted_demand).filter(Forecast.sku == sku.sku).all()
+            # ✅ Fixed: Use ForecastResult instead of Forecast
+            demands = db.query(ForecastResult.prediction).filter(ForecastResult.sku == sku.sku).all()
             units_sold = int(sum(d[0] for d in demands)) if demands else 1000 + (sku.id * 150)
             revenue = units_sold * (sku.unit_cost or 50.0)
             
-            scores = db.query(Forecast.confidence_score).filter(Forecast.sku == sku.sku).all()
+            scores = db.query(ForecastResult.confidence_score).filter(ForecastResult.sku == sku.sku).all()
             avg_acc = (sum(s[0] for s in scores) / len(scores)) if scores else 0.88 + (sku.id % 10) * 0.01
             yoy = 0.05 + (sku.id % 5) * 0.02 - (sku.id % 3) * 0.03
             
@@ -801,7 +792,8 @@ class ReportService:
         for w in wh_inv:
             sales_by_reg[w.region] = sales_by_reg.get(w.region, 0.0) + w.current_stock * sku_obj.unit_cost
             
-        forecasts_db = db.query(Forecast).filter(Forecast.sku == sku).order_by(Forecast.forecast_date.asc()).limit(12).all()
+        # ✅ Fixed: Use ForecastResult instead of Forecast
+        results_db = db.query(ForecastResult).filter(ForecastResult.sku == sku).order_by(ForecastResult.forecast_date.asc()).limit(12).all()
         months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
         demand_forecast_12m = []
         accuracy_trend_12m = []
@@ -811,7 +803,7 @@ class ReportService:
         sum_accuracy = 0.0
         
         for i, m in enumerate(months):
-            f_demand = forecasts_db[i].predicted_demand if i < len(forecasts_db) else 1000 + (i * 100)
+            f_demand = results_db[i].prediction if i < len(results_db) else 1000 + (i * 100)
             act_demand = f_demand * (0.95 + (i % 3) * 0.02)
             acc = 0.90 + (i % 5) * 0.02
             rev = act_demand * sku_obj.unit_cost
@@ -866,7 +858,6 @@ class ReportService:
         )
         params = payload.parameters or {}
 
-        # Persist a PENDING record immediately so caller gets an id
         report = Report(
             title=title,
             description=payload.description,
@@ -880,12 +871,10 @@ class ReportService:
         db.commit()
         db.refresh(report)
 
-        # Mark as generating
         report.status = ReportStatus.GENERATING
         db.add(report)
         db.commit()
 
-        # Run generation
         try:
             generators = {
                 "forecast_summary": _generate_forecast_summary,
@@ -902,11 +891,9 @@ class ReportService:
             }
             raw_data = generators[payload.report_type](db, params)
 
-            # Compute and inject dynamic KPI metrics
             raw_data["kpi_cards"] = _calculate_report_kpi_cards(db)
             report.data = raw_data
 
-            # Compute size and pages on-the-fly based on selected format
             if fmt == "csv":
                 csv_str = data_to_csv(raw_data)
                 report.file_size = len(csv_str.encode('utf-8'))
@@ -945,7 +932,6 @@ class ReportService:
 
     @staticmethod
     def get_download_content(report: Report, format_override: Optional[str] = None):
-        """Return (content, media_type, filename) for the download endpoint."""
         if report.status != ReportStatus.COMPLETED:
             raise ValueError("Report is not ready for download.")
 

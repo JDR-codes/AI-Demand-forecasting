@@ -1,16 +1,22 @@
+#fastapi_app/services/forecast/forecast_service.py
+
+"""
+Pure ML algorithms and model management.
+No business logic, no job management, no reporting.
+"""
 import os
 import json
+import pickle
 from datetime import datetime
-from typing import Iterable, Any, Tuple
-
-import numpy as np
+from typing import Iterable, Any, Tuple, List, Optional, Dict
 import pandas as pd
+import numpy as np
 
+from fastapi_app.core.config import BASE_DIR, DATA_DIR, DEFAULT_DATASET_PATH, REGISTRY_PATH, MODELS_DIR
 from fastapi_app.ai.arima import (
     train_arima,
     save_model,
     load_model,
-    calculate_metrics,
     find_peaks,
     forecast as arima_forecast,
 )
@@ -29,8 +35,11 @@ from fastapi_app.ai.prophet import (
     forecast_prophet as prophet_forecast,
     evaluate_prophet as prophet_evaluate,
 )
-from fastapi_app.core.config import BASE_DIR, DATA_DIR, DEFAULT_DATASET_PATH, REGISTRY_PATH, MODELS_DIR
 
+
+# ============================================================================
+# MODEL REGISTRY HELPERS
+# ============================================================================
 
 def _ensure_registry():
     dirpath = os.path.dirname(REGISTRY_PATH)
@@ -42,6 +51,7 @@ def _ensure_registry():
 
 
 def register_model(name: str, model_path: str, metadata: dict) -> None:
+    """Register a trained model in the registry."""
     _ensure_registry()
     with open(REGISTRY_PATH, "r+") as f:
         data = json.load(f)
@@ -53,7 +63,39 @@ def register_model(name: str, model_path: str, metadata: dict) -> None:
         f.truncate()
 
 
-def train_and_register(series: Iterable[float], order: tuple[int, int, int], name: str | None = None, model_type: str = "arima") -> str:
+def get_registered_models() -> dict:
+    """Get all registered models."""
+    _ensure_registry()
+    with open(REGISTRY_PATH, "r") as f:
+        return json.load(f)
+
+
+def get_latest_model(name: str) -> str | None:
+    """Get the latest model path for a given name."""
+    _ensure_registry()
+    with open(REGISTRY_PATH, "r") as f:
+        data = json.load(f)
+    if name not in data or not data[name]:
+        return None
+    return data[name][-1]["path"]
+
+
+def load_registered_model(path: str):
+    """Load a model from disk."""
+    return load_model(path)
+
+
+# ============================================================================
+# TRAINING FUNCTIONS
+# ============================================================================
+
+def train_and_register(
+    series: Iterable[float],
+    order: tuple[int, int, int] = (1, 1, 1),
+    name: str | None = None,
+    model_type: str = "arima"
+) -> str:
+    """Train ARIMA model and register it."""
     fitted = train_arima(series, order=order)
     ts = datetime.utcnow().strftime("%Y%m%dT%H%M%S")
     name = name or "arima"
@@ -65,52 +107,12 @@ def train_and_register(series: Iterable[float], order: tuple[int, int, int], nam
     return model_path
 
 
-def get_registered_models() -> dict:
-    _ensure_registry()
-    with open(REGISTRY_PATH, "r") as f:
-        return json.load(f)
-
-
-def get_latest_model(name: str) -> str | None:
-    _ensure_registry()
-    with open(REGISTRY_PATH, "r") as f:
-        data = json.load(f)
-    if name not in data or not data[name]:
-        return None
-    return data[name][-1]["path"]
-
-
-def load_registered_model(path: str):
-    return load_model(path)
-
-
-def prepare_series(path: str | None = None, date_col: str = "Date", value_col: str = "Demand", resample_rule: str = "D") -> pd.Series:
-    requested_path = path or DEFAULT_DATASET_PATH
-    dataset_path = requested_path
-
-    if not os.path.isabs(dataset_path):
-        candidates = [
-            dataset_path,
-            os.path.join(BASE_DIR, dataset_path),
-            os.path.join(DATA_DIR, dataset_path),
-        ]
-    
-        dataset_path = next(
-            (candidate for candidate in candidates if os.path.isfile(candidate)),
-            dataset_path,
-        )
-
-    if not os.path.isfile(dataset_path):
-        raise FileNotFoundError(f"Dataset file not found: {requested_path}")
-
-    df = pd.read_csv(dataset_path, parse_dates=[date_col])
-    df = df.set_index(date_col)
-    series = df[value_col].astype(float).resample(resample_rule).sum()
-    series = series.interpolate().bfill().ffill()
-    return series
-
-
-def train_xgboost(series: Iterable[float], n_lags: int = 7, test_frac: float = 0.2) -> dict:
+def train_xgboost(
+    series: Iterable[float],
+    n_lags: int = 7,
+    test_frac: float = 0.2
+) -> dict:
+    """Train XGBoost model and return results."""
     model = xgb_train(series, n_lags=n_lags, test_frac=test_frac)
     metrics = xgb_evaluate(model, series, n_lags=n_lags, test_frac=test_frac)
     preds = metrics.pop("test_predictions")
@@ -119,6 +121,7 @@ def train_xgboost(series: Iterable[float], n_lags: int = 7, test_frac: float = 0
     
     return {
         "model_type": "xgboost",
+        "model": model,
         "metrics": {k: v for k, v in metrics.items() if k != "test_actuals"},
         "test_predictions": preds,
         "future_predictions": future_preds,
@@ -126,7 +129,14 @@ def train_xgboost(series: Iterable[float], n_lags: int = 7, test_frac: float = 0
     }
 
 
-def train_lstm(series: Iterable[float], n_lags: int = 7, test_frac: float = 0.2, epochs: int = 20, batch_size: int = 16) -> dict:
+def train_lstm(
+    series: Iterable[float],
+    n_lags: int = 7,
+    test_frac: float = 0.2,
+    epochs: int = 20,
+    batch_size: int = 16
+) -> dict:
+    """Train LSTM model and return results."""
     model = lstm_train(series, n_lags=n_lags, test_frac=test_frac, epochs=epochs, batch_size=batch_size)
     metrics = lstm_evaluate(model, series, n_lags=n_lags, test_frac=test_frac)
     preds = metrics.pop("test_predictions")
@@ -135,6 +145,7 @@ def train_lstm(series: Iterable[float], n_lags: int = 7, test_frac: float = 0.2,
     
     return {
         "model_type": "lstm",
+        "model": model,
         "metrics": {k: v for k, v in metrics.items() if k != "test_actuals"},
         "test_predictions": preds,
         "future_predictions": future_preds,
@@ -142,7 +153,11 @@ def train_lstm(series: Iterable[float], n_lags: int = 7, test_frac: float = 0.2,
     }
 
 
-def train_prophet(series: Iterable[float], test_frac: float = 0.2) -> dict:
+def train_prophet(
+    series: Iterable[float],
+    test_frac: float = 0.2
+) -> dict:
+    """Train Prophet model and return results."""
     try:
         model, train_df, test_df = prophet_train(series, test_frac=test_frac)
         metrics = prophet_evaluate(model, test_df)
@@ -152,6 +167,7 @@ def train_prophet(series: Iterable[float], test_frac: float = 0.2) -> dict:
         
         return {
             "model_type": "prophet",
+            "model": model,
             "metrics": {k: v for k, v in metrics.items() if k != "test_actuals"},
             "test_predictions": preds,
             "future_predictions": future_preds,
@@ -161,15 +177,6 @@ def train_prophet(series: Iterable[float], test_frac: float = 0.2) -> dict:
         return {
             "model_type": "prophet",
             "error": "Prophet not installed. Install with: pip install prophet",
-            "metrics": {},
-            "test_predictions": [],
-            "future_predictions": [],
-            "peaks": [],
-        }
-    except RuntimeError as exc:
-        return {
-            "model_type": "prophet",
-            "error": f"Prophet training failed: {str(exc)}",
             "metrics": {},
             "test_predictions": [],
             "future_predictions": [],
@@ -186,105 +193,36 @@ def train_prophet(series: Iterable[float], test_frac: float = 0.2) -> dict:
         }
 
 
-def _normalize_model_type(model_type: str | None) -> str | None:
-    if model_type is None:
-        return None
+# ============================================================================
+# DATA PREPARATION
+# ============================================================================
 
-    normalized = model_type.strip().lower()
-    if normalized in {"", "all", "compare", "default"}:
-        return None
+def prepare_series(
+    path: str | None = None,
+    date_col: str = "Date",
+    value_col: str = "Demand",
+    resample_rule: str = "D"
+) -> pd.Series:
+    """Load and prepare time series data from CSV."""
+    requested_path = path or DEFAULT_DATASET_PATH
+    dataset_path = requested_path
 
-    if normalized not in {"arima", "xgboost", "lstm", "prophet"}:
-        raise ValueError(f"Unsupported model_type: {model_type}")
+    if not os.path.isabs(dataset_path):
+        candidates = [
+            dataset_path,
+            os.path.join(BASE_DIR, dataset_path),
+            os.path.join(DATA_DIR, dataset_path),
+        ]
+        dataset_path = next(
+            (candidate for candidate in candidates if os.path.isfile(candidate)),
+            dataset_path,
+        )
 
-    return normalized
+    if not os.path.isfile(dataset_path):
+        raise FileNotFoundError(f"Dataset file not found: {requested_path}")
 
-
-def _build_single_model_report(series: pd.Series, model_type: str, forecast_steps: int) -> dict[str, Any]:
-    if model_type == "arima":
-        model_path = train_and_register(series.tolist(), order=(1, 1, 1), name=f"auto_{model_type}", model_type=model_type)
-        model = load_registered_model(model_path)
-        forecast = arima_forecast(model, forecast_steps)
-        return {
-            "model_type": model_type,
-            "model_path": model_path,
-            "forecast": forecast,
-            "peaks": find_peaks(forecast, top_n=3),
-            "metrics": {
-                "aic": getattr(model, "aic", None),
-                "bic": getattr(model, "bic", None),
-                "hqic": getattr(model, "hqic", None),
-                "sigma2": float(getattr(model, "sigma2", 0.0)),
-            },
-        }
-
-    if model_type == "xgboost":
-        report = train_xgboost(series, n_lags=7)
-        return {
-            "model_type": model_type,
-            "forecast": report["future_predictions"],
-            "metrics": report["metrics"],
-            "peaks": report["peaks"],
-        }
-
-    if model_type == "lstm":
-        report = train_lstm(series, n_lags=7)
-        return {
-            "model_type": model_type,
-            "forecast": report["future_predictions"],
-            "metrics": report["metrics"],
-            "peaks": report["peaks"],
-        }
-
-    report = train_prophet(series)
-    if report.get("error"):
-        raise ValueError(report["error"])
-
-    return {
-        "model_type": model_type,
-        "forecast": report["future_predictions"],
-        "metrics": report["metrics"],
-        "peaks": report["peaks"],
-    }
-
-
-def auto_forecast_report(path: str | None = None, forecast_steps: int = 7, model_type: str | None = None) -> dict[str, Any]:
-    normalized_model_type = _normalize_model_type(model_type)
-    series = prepare_series(path)
-
-    if normalized_model_type:
-        return {
-            "dataset": path or DEFAULT_DATASET_PATH,
-            "series_length": len(series),
-            "requested_model": normalized_model_type,
-            "model": _build_single_model_report(series, normalized_model_type, forecast_steps),
-            "registered_models": get_registered_models(),
-        }
-
-    arima_path = train_and_register(series.tolist(), order=(1, 1, 1), name="auto_arima", model_type="arima")
-    arima_model = load_registered_model(arima_path)
-    arima_future = arima_forecast(arima_model, forecast_steps)
-
-    xgboost_report = train_xgboost(series, n_lags=7)
-    lstm_report = train_lstm(series, n_lags=7)
-    prophet_report = train_prophet(series)
-
-    return {
-        "dataset": path or DEFAULT_DATASET_PATH,
-        "series_length": len(series),
-        "arima": {
-            "model_path": arima_path,
-            "forecast": arima_future,
-            "peaks": find_peaks(arima_future, top_n=3),
-            "model_stats": {
-                "aic": getattr(arima_model, "aic", None),
-                "bic": getattr(arima_model, "bic", None),
-                "hqic": getattr(arima_model, "hqic", None),
-                "sigma2": float(getattr(arima_model, "sigma2", 0.0)),
-            },
-        },
-        "xgboost": xgboost_report,
-        "lstm": lstm_report,
-        "prophet": prophet_report,
-        "registered_models": get_registered_models(),
-    }
+    df = pd.read_csv(dataset_path, parse_dates=[date_col])
+    df = df.set_index(date_col)
+    series = df[value_col].astype(float).resample(resample_rule).sum()
+    series = series.interpolate().bfill().ffill()
+    return series

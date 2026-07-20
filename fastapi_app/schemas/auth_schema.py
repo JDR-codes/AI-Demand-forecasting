@@ -14,7 +14,25 @@ class SuperAdminCreate(BaseModel):
     name: str
     email: EmailStr
     password: str
+    confirm_password: str
     role: str = "super_admin"
+
+    @field_validator("password")
+    @classmethod
+    def password_strength(cls, v: str) -> str:
+        if len(v) < 8:
+            raise ValueError("Password must be at least 8 characters long.")
+        if not re.search(r"[A-Z]", v):
+            raise ValueError("Password must contain at least one uppercase letter.")
+        if not re.search(r"\d", v):
+            raise ValueError("Password must contain at least one digit.")
+        return v
+
+    @model_validator(mode="after")
+    def passwords_match(self):
+        if self.password != self.confirm_password:
+            raise ValueError("password and confirm_password do not match.")
+        return self
 
 
  

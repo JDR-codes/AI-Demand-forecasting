@@ -1,3 +1,4 @@
+#fastapi_app/ai/arima.py
 import pandas as pd
 import joblib
 from statsmodels.tsa.arima.model import ARIMA
@@ -21,23 +22,8 @@ def forecast(fitted_model: Any, steps: int) -> List[float]:
     return [float(x) for x in preds]
 
 
-def calculate_metrics(actuals: Iterable[float], predictions: Iterable[float]) -> dict[str, float]:
-    """Calculate regression metrics between actual and predicted values."""
-    actual_arr = np.array(list(actuals), dtype=float)
-    pred_arr = np.array(list(predictions), dtype=float)
-    if actual_arr.shape != pred_arr.shape:
-        raise ValueError("actuals and predictions must have the same length")
-    errors = actual_arr - pred_arr
-    mse = float(np.mean(errors ** 2))
-    rmse = float(np.sqrt(mse))
-    mae = float(np.mean(np.abs(errors)))
-    mape = float(np.mean(np.abs(errors / np.where(actual_arr == 0, 1.0, actual_arr)))) * 100.0
-    return {
-        "mse": mse,
-        "rmse": rmse,
-        "mae": mae,
-        "mape": mape,
-    }
+# ✅ REMOVE calculate_metrics - now in forecast_metrics.py
+# The ForecastMetricsService.calculate_error_metrics() should be used instead
 
 
 def find_peaks(values: Iterable[float], top_n: int = 3) -> List[dict[str, float]]:

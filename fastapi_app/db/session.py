@@ -8,6 +8,7 @@ from fastapi_app.core.config import DATABASE_URL
 
 Base = declarative_base()
 
+# Import models AFTER Base is defined to avoid circular imports
 from fastapi_app import models 
 
 
@@ -108,7 +109,7 @@ def _seed_rbac_defaults():
     by unique `name`, so it never duplicates rows or overwrites edits an
     admin made later via the Roles API.
     """
-    # Import models from the package (or use from fastapi_app.models import Permission, Role)
+    # Import models from the package
     from fastapi_app.models import Permission, Role
 
     PERMISSION_CATALOG = [
@@ -156,6 +157,9 @@ def _seed_rbac_defaults():
             db.add(user_role)
 
         db.commit()
+    except Exception as e:
+        db.rollback()
+        raise
     finally:
         db.close()
 
