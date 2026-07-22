@@ -180,6 +180,39 @@ class ConnectionManager:
                     self.connections[channel] = active
                 logger.info(f"Cleaned up {len(connections) - len(active)} inactive connections from {channel}")
 
+    # Add to fastapi_app/services/websocket/websocket_manager.py
 
+    async def send_recommendation_update(self, data: dict):
+        """Send recommendation update to all clients."""
+        await self.broadcast_to_channel("recommendations", data)
+    
+    async def send_recommendation_progress(self, job_id: str, progress: float, step: str, status: str):
+        """Send recommendation progress update."""
+        await self.send_recommendation_update({
+            "type": "recommendation_progress",
+            "job_id": job_id,
+            "progress": progress,
+            "step": step,
+            "status": status,
+            "timestamp": datetime.utcnow().isoformat()
+        })
+    
+    async def send_recommendation_completed(self, job_id: str, count: int):
+        """Send recommendation completed update."""
+        await self.send_recommendation_update({
+            "type": "recommendation_completed",
+            "job_id": job_id,
+            "count": count,
+            "timestamp": datetime.utcnow().isoformat()
+        })
+    
+    async def send_recommendation_executed(self, recommendation_id: int, sku: str):
+        """Send recommendation executed update."""
+        await self.send_recommendation_update({
+            "type": "recommendation_executed",
+            "id": recommendation_id,
+            "sku": sku,
+            "timestamp": datetime.utcnow().isoformat()
+        })
 # Global connection manager instance
 manager = ConnectionManager()

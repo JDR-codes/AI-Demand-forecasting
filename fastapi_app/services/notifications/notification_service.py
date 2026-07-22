@@ -511,3 +511,54 @@ class NotificationService:
             notification_type=NotificationType.SYSTEM,
             priority=priority
         )
+        
+    @staticmethod
+    def create_recommendation_notification(
+        db: Session,
+        user_id: int,
+        job_id: str = None,
+        success: bool = True,
+        count: int = 0,
+        message: str = None
+    ) -> Optional[Notification]:
+        """Create recommendation notification."""
+        if not user_id:
+            return None
+        
+        if success:
+            title = f"✅ Recommendation Job Completed"
+            default_msg = f"Generated {count} recommendations"
+        else:
+            title = f"❌ Recommendation Job Failed"
+            default_msg = f"Recommendation job failed: {message or 'Unknown error'}"
+        
+        return NotificationService.create_notification(
+            db=db,
+            user_id=user_id,
+            title=title,
+            message=message or default_msg,
+            notification_type="recommendation",
+            priority="info" if success else "critical"
+        )
+
+    @staticmethod
+    def create_critical_recommendation_notification(
+        db: Session,
+        user_id: int,
+        recommendation: Dict[str, Any]
+    ) -> Optional[Notification]:
+        """Create critical recommendation notification."""
+        if not user_id:
+            return None
+        
+        sku = recommendation.get("sku", "Unknown")
+        action = recommendation.get("action_label", "Take action")
+        
+        return NotificationService.create_notification(
+            db=db,
+            user_id=user_id,
+            title=f"🚨 CRITICAL RECOMMENDATION - SKU {sku}",
+            message=f"Critical action required: {action}",
+            notification_type="recommendation_critical",
+            priority="critical"
+        )

@@ -74,13 +74,31 @@ from fastapi_app.models.forecast_job_model import (
     ForecastJob,
     ForecastJobStatus,
     ForecastJobStep,
-    ForecastJobStepDetail,  # ✅ Added missing import
+    ForecastJobStepDetail,
     ForecastResult
 )
-from fastapi_app.models.forecast_metric_history_model import ForecastMetricHistory  # ✅ Added
+from fastapi_app.models.forecast_metric_history_model import ForecastMetricHistory
 from fastapi_app.models.model_registry_model import ModelRegistry
 from fastapi_app.models.training_job_model import TrainingJob, TrainingHistory, TrainingJobStepDetail
 from fastapi_app.models.training_configuration_model import TrainingConfiguration
+
+# ============================================================================
+# RECOMMENDATION MODELS - UPDATED
+# ============================================================================
+from fastapi_app.models.recommendation_job_model import (
+    RecommendationJob,
+    RecommendationJobStatus,
+    RecommendationJobStep,
+    RecommendationJobStepDetail
+)
+from fastapi_app.models.recommendation_result_model import (
+    RecommendationResult,
+    RecommendationResultStatus,
+    RecommendationResultPriority,
+    RecommendationResultType,
+    RecommendationResultCategory
+)
+from fastapi_app.models.recommendation_history_model import RecommendationHistory
 
 # ============================================================================
 # NOTIFICATION MODELS
@@ -101,10 +119,12 @@ from fastapi_app.models.inventory_model import (
     SafetyStockCalculation,
     ReorderPoint,
     InventoryTransfer,
-    ExcessStock
+    ExcessStock,
+    SlowMovingInventory,
+    InventoryHistory,
+    InventoryMovement,
+    InventoryAlert,
 )
-
-
 
 # ============================================================================
 # SCHEDULER MODELS
@@ -112,11 +132,20 @@ from fastapi_app.models.inventory_model import (
 from fastapi_app.models.scheduler_history_model import SchedulerHistory
 
 # ============================================================================
-# OTHER MODELS
+# SCENARIO MODELS
 # ============================================================================
-from fastapi_app.models.recommendation_model import Recommendation
+from fastapi_app.models.scenario_model import (
+    Scenario,
+    ScenarioStatus,
+    ScenarioRun,
+    ScenarioResult,
+    ScenarioComparison
+)
+
+# ============================================================================
+# REPORT MODELS
+# ============================================================================
 from fastapi_app.models.report_model import Report
-from fastapi_app.models.scenario_model import Scenario
 
 
 __all__ = [
@@ -178,6 +207,18 @@ __all__ = [
     'TrainingJobStepDetail',
     'TrainingConfiguration',
     
+    # Recommendation - UPDATED
+    'RecommendationJob',
+    'RecommendationJobStatus',
+    'RecommendationJobStep',
+    'RecommendationJobStepDetail',
+    'RecommendationResult',
+    'RecommendationResultStatus',
+    'RecommendationResultPriority',
+    'RecommendationResultType',
+    'RecommendationResultCategory',
+    'RecommendationHistory',
+    
     # Notifications
     'Notification',
     'NotificationStatus',
@@ -191,12 +232,21 @@ __all__ = [
     'ReorderPoint',
     'InventoryTransfer',
     'ExcessStock',
+    'SlowMovingInventory',
+    'InventoryHistory',
+    'InventoryMovement',
+    'InventoryAlert',
     
     # Scheduler
     'SchedulerHistory',
     
-    # Other
-    'Recommendation',
-    'Report',
+    # Scenario
     'Scenario',
+    'ScenarioStatus',
+    'ScenarioRun',
+    'ScenarioResult',
+    'ScenarioComparison',
+    
+    # Report
+    'Report',
 ]

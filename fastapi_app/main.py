@@ -42,6 +42,9 @@ from fastapi_app.routes.training_jobs import router as training_jobs_router
 from fastapi_app.routes.model_registry import router as models_router
 from fastapi_app.routes.forecast_engine import router as forecast_engine_router
 
+# ✅ Recommendation routes
+from fastapi_app.routes.recommendation import router as recommendation_router
+
 # Inventory & Other
 from fastapi_app.routes.inventory import router as inventory_router
 from fastapi_app.routes.scenarios import router as scenarios_router
@@ -145,15 +148,18 @@ app.include_router(websocket_router)                 # /ws
 # Forecast Module
 app.include_router(forecast_jobs_router)             # /api/forecast/jobs
 app.include_router(training_jobs_router)             # /api/training
-app.include_router(models_router)                    # /api/models
-app.include_router(forecast_engine_router)           # /api/forecast-engine
+app.include_router(models_router)                    # /api/forecast/models
+app.include_router(forecast_engine_router)           # /api/forecast
+
+# ✅ Recommendation Module - NEW
+app.include_router(recommendation_router)            # /api/recommendations
 
 # Inventory & Scenarios
 app.include_router(inventory_router)                 # /api/inventory
 app.include_router(scenarios_router)                 # /api/scenarios
 
 # Alerts & Reports
-app.include_router(alerts_module13_router)           # /api/alerts-module13
+app.include_router(alerts_module13_router)           # /api/alerts
 app.include_router(reports_router)                   # /api/reports
 
 # Dashboard & Mock

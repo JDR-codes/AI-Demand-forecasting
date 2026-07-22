@@ -1,3 +1,4 @@
+# fastapi_app/routes/scheduler.py
 from fastapi import APIRouter, Depends, HTTPException, Query
 from typing import List, Optional
 from sqlalchemy.orm import Session
@@ -37,6 +38,16 @@ def get_scheduled_training_jobs(
 ):
     """Get all scheduled training jobs."""
     jobs = scheduler.get_training_jobs()
+    return {"jobs": jobs, "count": len(jobs)}
+
+
+@router.get("/jobs/inventory")
+def get_scheduled_inventory_jobs(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get all scheduled inventory jobs."""
+    jobs = scheduler.get_inventory_jobs()
     return {"jobs": jobs, "count": len(jobs)}
 
 

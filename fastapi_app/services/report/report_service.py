@@ -17,7 +17,8 @@ from fastapi_app.models.inventory_model import (
     SafetyStockCalculation,
     WarehouseInventory,
 )
-from fastapi_app.models.recommendation_model import Recommendation
+# ✅ REPLACE old Recommendation with new RecommendationResult
+from fastapi_app.models.recommendation_result_model import RecommendationResult
 from fastapi_app.models.report_model import Report, ReportStatus
 from fastapi_app.models.scenario_model import Scenario
 from fastapi_app.schemas.report_schema import ReportGenerateRequest
@@ -105,7 +106,6 @@ def _calculate_report_kpi_cards(
         total_impact = 2640000.0
 
     # 2. Average Forecast Accuracy
-    # ✅ Fixed: Use ForecastResult instead of Forecast
     accuracy_q = db.query(func.avg(ForecastResult.confidence_score))
     if region:
         accuracy_q = accuracy_q.filter(ForecastResult.region == region)
@@ -164,7 +164,6 @@ def _calculate_report_kpi_cards(
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _generate_forecast_summary(db: Session, params: Dict[str, Any]) -> Dict[str, Any]:
-    # ✅ Fixed: Use ForecastResult instead of Forecast
     q = db.query(ForecastResult)
     if params.get("sku"):
         q = q.filter(ForecastResult.sku == params["sku"])
@@ -263,22 +262,23 @@ def _generate_inventory_health(db: Session, params: Dict[str, Any]) -> Dict[str,
 
 
 def _generate_recommendation_summary(db: Session, params: Dict[str, Any]) -> Dict[str, Any]:
-    q = db.query(Recommendation)
+    # ✅ Use RecommendationResult instead of Recommendation
+    q = db.query(RecommendationResult)
     if params.get("sku"):
-        q = q.filter(Recommendation.sku == params["sku"])
+        q = q.filter(RecommendationResult.sku == params["sku"])
     if params.get("status"):
-        q = q.filter(Recommendation.status == params["status"])
+        q = q.filter(RecommendationResult.status == params["status"])
     if params.get("priority"):
-        q = q.filter(Recommendation.priority == params["priority"])
+        q = q.filter(RecommendationResult.priority == params["priority"])
         
     category = params.get("category")
-    q = _apply_category_filter(db, q, Recommendation.sku, category)
+    q = _apply_category_filter(db, q, RecommendationResult.sku, category)
     
     date_range = params.get("date_range") or params.get("timeframe")
-    q = _apply_date_filter(q, Recommendation.created_at, date_range)
+    q = _apply_date_filter(q, RecommendationResult.created_at, date_range)
 
     limit = int(params.get("limit", 100))
-    recs = [_row_to_dict(r) for r in q.order_by(Recommendation.created_at.desc()).limit(limit).all()]
+    recs = [_row_to_dict(r) for r in q.order_by(RecommendationResult.created_at.desc()).limit(limit).all()]
 
     by_priority: Dict[str, int] = {}
     by_type: Dict[str, int] = {}
@@ -375,7 +375,6 @@ def _generate_full_system(db: Session, params: Dict[str, Any]) -> Dict[str, Any]
 
 
 def _generate_demand_summary(db: Session, params: Dict[str, Any]) -> Dict[str, Any]:
-    # ✅ Fixed: Use ForecastResult instead of Forecast
     results = db.query(ForecastResult).order_by(ForecastResult.forecast_date.asc()).all()
     monthly_data = {}
     months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
@@ -409,7 +408,6 @@ def _generate_demand_summary(db: Session, params: Dict[str, Any]) -> Dict[str, A
 
 
 def _generate_model_performance(db: Session, params: Dict[str, Any]) -> Dict[str, Any]:
-    # ✅ Fixed: Use ForecastResult instead of Forecast
     results = db.query(ForecastResult).all()
     models = list({r.model_used for r in results if r.model_used})
     
@@ -455,7 +453,6 @@ def _generate_stockout_risk(db: Session, params: Dict[str, Any]) -> Dict[str, An
 
 
 def _generate_custom_report(db: Session, params: Dict[str, Any]) -> Dict[str, Any]:
-    # ✅ Fixed: Use ForecastResult instead of Forecast
     forecast_count = db.query(ForecastResult).count()
     inventory_count = db.query(WarehouseInventory).count()
     return {
@@ -708,7 +705,6 @@ class ReportService:
             if search and not (search.lower() in sku.sku.lower() or (sku.description and search.lower() in sku.description.lower())):
                 continue
             
-            # ✅ Fixed: Use ForecastResult instead of Forecast
             demands = db.query(ForecastResult.prediction).filter(ForecastResult.sku == sku.sku).all()
             units_sold = int(sum(d[0] for d in demands)) if demands else 1000 + (sku.id * 150)
             revenue = units_sold * (sku.unit_cost or 50.0)
@@ -792,7 +788,6 @@ class ReportService:
         for w in wh_inv:
             sales_by_reg[w.region] = sales_by_reg.get(w.region, 0.0) + w.current_stock * sku_obj.unit_cost
             
-        # ✅ Fixed: Use ForecastResult instead of Forecast
         results_db = db.query(ForecastResult).filter(ForecastResult.sku == sku).order_by(ForecastResult.forecast_date.asc()).limit(12).all()
         months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
         demand_forecast_12m = []

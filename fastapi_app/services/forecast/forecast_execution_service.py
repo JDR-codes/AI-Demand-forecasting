@@ -1,6 +1,7 @@
 # fastapi_app/services/forecast/forecast_execution_service.py
 """
 Forecast Execution Service - Full pipeline execution with step tracking.
+Modified to trigger recommendation generation after completion.
 """
 import asyncio
 import time
@@ -22,6 +23,7 @@ from fastapi_app.models.model_registry_model import ModelRegistry
 from fastapi_app.models.forecast_metric_history_model import ForecastMetricHistory
 from fastapi_app.services.forecast.forecast_service import prepare_series, load_registered_model
 from fastapi_app.services.forecast.forecast_metrics import ForecastMetricsService
+from fastapi_app.services.forecast.forecast_result_service import ForecastResultService
 from fastapi_app.services.websocket.websocket_manager import manager
 from fastapi_app.services.notifications.notification_service import NotificationService
 from fastapi_app.core.config import DEFAULT_DATASET_PATH
@@ -235,7 +237,7 @@ class ForecastExecutionService:
                 job.current_step_message = "Completed successfully"
                 db.commit()
                 
-                # ✅ Insert ForecastMetricHistory
+                # Insert ForecastMetricHistory
                 if job.metrics:
                     metric_history = ForecastMetricHistory(
                         model_id=job.model_registry_id,
@@ -275,6 +277,27 @@ class ForecastExecutionService:
                     "job_id": job_id,
                     "timestamp": datetime.utcnow().isoformat()
                 })
+                
+                # ============================================================
+                # 🔥 PHASE 1: Trigger Recommendation Generation
+                # ============================================================
+                try:
+                    from fastapi_app.services.recommendation.recommendation_execution_service import RecommendationExecutionService
+                    
+                    logger.info(f"Triggering recommendation generation for forecast job {job_id}")
+                    
+                    # Get forecast summary to pass to recommendation
+                    forecast_summary = ForecastResultService.get_summary(db, job_id)
+                    
+                    # Start recommendation generation in background
+                    TaskManager.run_recommendation_job(job_id, forecast_summary)
+                    
+                    logger.info(f"Recommendation generation triggered for forecast job {job_id}")
+                    
+                except ImportError as e:
+                    logger.warning(f"Recommendation module not available: {str(e)}")
+                except Exception as e:
+                    logger.error(f"Failed to trigger recommendation generation: {str(e)}")
                 
         except Exception as e:
             logger.error(f"Forecast job {job_id} failed: {str(e)}")
@@ -374,8 +397,6 @@ class ForecastExecutionService:
     @staticmethod
     def _filter_series(series: pd.Series, job: ForecastJob) -> pd.Series:
         """Filter series by SKU, region, warehouse if configured."""
-        # Since we're working with a simple series, we can't filter by SKU here
-        # This is handled in _get_series when querying raw data
         return series
     
     @staticmethod
@@ -540,9 +561,8 @@ class ForecastExecutionService:
         
         results_to_add = []
         
-        # ✅ 1. Save historical data (is_forecast=False)
+        # 1. Save historical data (is_forecast=False)
         if series is not None and len(series) > 0:
-            # Take last 30 historical points for context
             historical_series = series.tail(30)
             for date, value in historical_series.items():
                 if pd.isna(value):
@@ -554,16 +574,15 @@ class ForecastExecutionService:
                     warehouse=warehouse,
                     forecast_date=date.to_pydatetime() if hasattr(date, 'to_pydatetime') else date,
                     prediction=float(value),
-                    actual_value=float(value),  # Historical values are actual
-                    confidence_score=1.0,  # 100% confidence for historical
+                    actual_value=float(value),
+                    confidence_score=1.0,
                     model_used="historical",
-                    is_forecast=False,  # ✅ Mark as historical
+                    is_forecast=False,
                     is_peak=False
                 )
                 results_to_add.append(result)
         
-        # ✅ 2. Save forecast data (is_forecast=True)
-        # Generate dates
+        # 2. Save forecast data (is_forecast=True)
         last_date = series.index[-1] if len(series) > 0 else pd.Timestamp.now()
         forecast_dates = pd.date_range(
             start=last_date + pd.Timedelta(days=1),
@@ -571,16 +590,13 @@ class ForecastExecutionService:
             freq='D'
         )
         
-        # Update job forecast date range
         job.forecast_start_date = forecast_dates[0].to_pydatetime()
         job.forecast_end_date = forecast_dates[-1].to_pydatetime()
         
-        # Get confidence intervals
         confidence_interval = job.metrics.get("confidence_interval", {})
         upper = confidence_interval.get("upper", [])
         lower = confidence_interval.get("lower", [])
         
-        # Get peaks
         peaks = job.metrics.get("peaks", [])
         peak_steps = {p["step"] - 1 for p in peaks}
         
@@ -596,7 +612,7 @@ class ForecastExecutionService:
                 confidence_upper=upper[i] if i < len(upper) else None,
                 confidence_lower=lower[i] if i < len(lower) else None,
                 model_used=job.metrics.get("model_type", "unknown"),
-                is_forecast=True,  # ✅ Mark as forecast
+                is_forecast=True,
                 is_peak=i in peak_steps
             )
             results_to_add.append(result)
@@ -683,7 +699,6 @@ class ForecastExecutionService:
         if not old_job:
             return None
         
-        # Create new job with same config
         from fastapi_app.schemas.forecast_schema import ForecastJobCreate
         config = ForecastJobCreate(
             upload_id=old_job.upload_id,
@@ -698,7 +713,6 @@ class ForecastExecutionService:
         from fastapi_app.services.forecast.forecast_job_service import ForecastJobService
         new_job = ForecastJobService.create_job(db, config, old_job.created_by)
         
-        # Start the new job
         TaskManager.run_forecast_job(new_job.job_id)
         
         return new_job
