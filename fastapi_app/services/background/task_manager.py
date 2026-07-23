@@ -94,42 +94,7 @@ class TaskManager:
                 db.close()
         TaskManager.add_task(_run)
     
-    # ============================================================
-    # Recommendation Job Runner
-    # ============================================================
-    @staticmethod
-    def run_recommendation_job(forecast_job_id: str, forecast_summary: Optional[Dict[str, Any]] = None):
-        """
-        Run a recommendation job in background.
-        Triggered by forecast completion.
-        """
-        from fastapi_app.services.recommendation.recommendation_execution_service import RecommendationExecutionService
-        
-        def _run():
-            db = SessionLocal()
-            try:
-                logger.info(f"Starting recommendation job for forecast {forecast_job_id}")
-                
-                # Pass forecast summary if available
-                if forecast_summary:
-                    result = RecommendationExecutionService.start_job_from_forecast(
-                        db, forecast_job_id, forecast_summary
-                    )
-                else:
-                    result = RecommendationExecutionService.start_job_from_forecast(
-                        db, forecast_job_id
-                    )
-                
-                if result:
-                    logger.info(f"Recommendation job completed for forecast {forecast_job_id}")
-                else:
-                    logger.error(f"Recommendation job failed for forecast {forecast_job_id}")
-            except Exception as e:
-                logger.error(f"Recommendation job for forecast {forecast_job_id} failed: {str(e)}")
-            finally:
-                db.close()
-        
-        TaskManager.add_task(_run)
+    
     
     @staticmethod
     def shutdown():

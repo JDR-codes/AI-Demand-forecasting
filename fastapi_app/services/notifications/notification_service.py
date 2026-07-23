@@ -516,49 +516,43 @@ class NotificationService:
     def create_recommendation_notification(
         db: Session,
         user_id: int,
-        job_id: str = None,
         success: bool = True,
         count: int = 0,
-        message: str = None
+        message: str = None,
+        sku: str = None
     ) -> Optional[Notification]:
-        """Create recommendation notification."""
+        """Create a recommendation notification."""
         if not user_id:
             return None
         
         if success:
-            title = f"✅ Recommendation Job Completed"
-            default_msg = f"Generated {count} recommendations"
+            if count > 1:
+                title = f"✅ {count} Recommendations Generated"
+                default_msg = f"Generated {count} recommendations"
+            else:
+                title = f"✅ Recommendation Executed" if "executed" in str(message).lower() else f"✅ Recommendation Generated"
+                default_msg = message or "Recommendation processed successfully"
+            priority = NotificationPriority.MEDIUM
         else:
-            title = f"❌ Recommendation Job Failed"
-            default_msg = f"Recommendation job failed: {message or 'Unknown error'}"
+            title = f"❌ Recommendation Action Failed"
+            default_msg = message or "Recommendation action failed"
+            priority = NotificationPriority.HIGH
+        
+        # For critical recommendations
+        if "critical" in str(message).lower() or "CRITICAL" in str(title).upper():
+            title = f"🚨 CRITICAL RECOMMENDATION"
+            if sku:
+                title += f" - SKU {sku}"
+            priority = NotificationPriority.HIGH
+            notification_type = NotificationType.ALERT
+        else:
+            notification_type = NotificationType.SYSTEM
         
         return NotificationService.create_notification(
             db=db,
             user_id=user_id,
             title=title,
-            message=message or default_msg,
-            notification_type="recommendation",
-            priority="info" if success else "critical"
-        )
-
-    @staticmethod
-    def create_critical_recommendation_notification(
-        db: Session,
-        user_id: int,
-        recommendation: Dict[str, Any]
-    ) -> Optional[Notification]:
-        """Create critical recommendation notification."""
-        if not user_id:
-            return None
-        
-        sku = recommendation.get("sku", "Unknown")
-        action = recommendation.get("action_label", "Take action")
-        
-        return NotificationService.create_notification(
-            db=db,
-            user_id=user_id,
-            title=f"🚨 CRITICAL RECOMMENDATION - SKU {sku}",
-            message=f"Critical action required: {action}",
-            notification_type="recommendation_critical",
-            priority="critical"
+            message=default_msg,
+            notification_type=notification_type,
+            priority=priority
         )

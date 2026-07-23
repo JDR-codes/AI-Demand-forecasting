@@ -3,7 +3,7 @@
 Recommendation History Model - Tracks execution history.
 """
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, DateTime, Float, ForeignKey, Text, JSON, Index
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Text, Index
 from fastapi_app.db.session import Base
 from sqlalchemy.orm import relationship
 
@@ -14,10 +14,9 @@ class RecommendationHistory(Base):
     
     id = Column(Integer, primary_key=True, index=True)
     recommendation_id = Column(Integer, ForeignKey("recommendation_results.id", ondelete="CASCADE"), nullable=False)
-    recommendation_job_id = Column(Integer, ForeignKey("recommendation_jobs.id"), nullable=True)
     
     # Action types
-    action = Column(String(50), nullable=False)  # created, updated, generated, regenerated, executed, ignored, deleted, retry, cancelled, failed
+    action = Column(String(50), nullable=False)  # generated, executed, ignored, deleted
     
     # Status before/after
     previous_status = Column(String(50), nullable=True)
@@ -28,20 +27,12 @@ class RecommendationHistory(Base):
     
     # Details
     reason = Column(Text, nullable=True)
-    details = Column(JSON, nullable=True)
-    
-    # Metrics at time of action
-    estimated_savings = Column(Float, nullable=True)
-    ai_confidence = Column(Float, nullable=True)
-    recommendation_score = Column(Float, nullable=True)
-    forecast_value = Column(Float, nullable=True)
     
     # Timestamp
     performed_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     
     # Relationships
     recommendation = relationship("RecommendationResult", foreign_keys=[recommendation_id])
-    recommendation_job = relationship("RecommendationJob", foreign_keys=[recommendation_job_id])
     performer = relationship("User", foreign_keys=[performed_by])
     
     __table_args__ = (

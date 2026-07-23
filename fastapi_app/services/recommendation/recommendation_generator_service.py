@@ -2,14 +2,19 @@
 """
 Recommendation Generator Service - Business-focused recommendation generation.
 Generates actionable business recommendations from forecast analysis.
+Includes validation, deduplication, and scoring.
 """
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Tuple
 from datetime import datetime
 import numpy as np
 
 
 class RecommendationGeneratorService:
     """Service for generating business recommendations from forecast analysis."""
+    
+    # ============================================================
+    # MAIN GENERATION
+    # ============================================================
     
     @staticmethod
     def generate_recommendations(
@@ -260,12 +265,14 @@ class RecommendationGeneratorService:
                 )
             )
         
-        # Calculate scores for each recommendation
-        for rec in recommendations:
-            rec["recommendation_score"] = RecommendationGeneratorService._calculate_score(rec)
-            rec["risk_score"] = risk_score
+        # Calculate scores and validate
+        recommendations = RecommendationGeneratorService._process_batch(recommendations, risk_score)
         
         return recommendations
+    
+    # ============================================================
+    # RECOMMENDATION CREATION
+    # ============================================================
     
     @staticmethod
     def _create_recommendation(
@@ -286,13 +293,11 @@ class RecommendationGeneratorService:
     ) -> Dict[str, Any]:
         """Create a recommendation with all required fields."""
         
-        # Default values
         peak_days = peak_days or []
         sku = sku or "default"
         region = region or "default"
         warehouse = warehouse or "default"
         
-        # Type-specific configurations
         configs = {
             "critical_alert": {
                 "title": f"🚨 CRITICAL ALERT - SKU {sku}",
@@ -442,7 +447,6 @@ class RecommendationGeneratorService:
         
         config = configs.get(rec_type, configs["inventory_optimization"])
         
-        # Build the recommendation
         return {
             "sku": sku,
             "region": region,
@@ -497,30 +501,126 @@ class RecommendationGeneratorService:
             ]
         }
     
+    # ============================================================
+    # PROCESSING PIPELINE
+    # ============================================================
+    
+    @staticmethod
+    def _process_batch(
+        recommendations: List[Dict[str, Any]],
+        default_risk_score: float = 40
+    ) -> List[Dict[str, Any]]:
+        """Process a batch of recommendations: validate, deduplicate, score."""
+        if not recommendations:
+            return []
+        
+        # 1. Validate
+        validated = []
+        invalid = []
+        for rec in recommendations:
+            if RecommendationGeneratorService._validate_single(rec):
+                validated.append(rec)
+            else:
+                invalid.append(rec)
+        
+        # 2. Remove duplicates within batch
+        unique, removed = RecommendationGeneratorService._remove_duplicates(validated)
+        
+        # 3. Calculate scores
+        scored = []
+        for rec in unique:
+            rec["recommendation_score"] = RecommendationGeneratorService._calculate_score(rec)
+            if not rec.get("risk_score"):
+                rec["risk_score"] = default_risk_score
+            scored.append(rec)
+        
+        return scored
+    
+    @staticmethod
+    def _validate_single(recommendation: Dict[str, Any]) -> bool:
+        """Validate a single recommendation."""
+        required_fields = [
+            "sku", "title", "recommendation_type",
+            "priority", "recommended_quantity"
+        ]
+        
+        for field in required_fields:
+            if not recommendation.get(field):
+                return False
+        
+        if recommendation.get("recommended_quantity", 0) <= 0:
+            return False
+        
+        confidence = recommendation.get("ai_confidence", 0)
+        if confidence < 0 or confidence > 100:
+            return False
+        
+        valid_priorities = ["critical", "high", "medium", "low"]
+        if recommendation.get("priority") not in valid_priorities:
+            return False
+        
+        return True
+    
+    @staticmethod
+    def _remove_duplicates(
+        recommendations: List[Dict[str, Any]]
+    ) -> Tuple[List[Dict[str, Any]], int]:
+        """Remove duplicate recommendations based on SKU + type."""
+        if not recommendations:
+            return [], 0
+        
+        seen = set()
+        unique = []
+        removed = 0
+        
+        for rec in recommendations:
+            key = f"{rec.get('sku', 'default')}_{rec.get('recommendation_type', 'unknown')}"
+            if key not in seen:
+                seen.add(key)
+                unique.append(rec)
+            else:
+                removed += 1
+        
+        return unique, removed
+    
     @staticmethod
     def _calculate_score(recommendation: Dict[str, Any]) -> float:
-        """Calculate recommendation score (0-100)."""
-        scores = []
+        """Calculate overall recommendation score (0-100)."""
+        weights = {
+            "priority": 0.30,
+            "confidence": 0.25,
+            "savings": 0.20,
+            "risk_reduction": 0.15,
+            "impact": 0.10
+        }
         
-        # Priority weight
+        scores = {}
+        
+        # Priority score
         priority = recommendation.get("priority", "medium")
-        priority_weights = {"critical": 100, "high": 80, "medium": 60, "low": 40}
-        scores.append(priority_weights.get(priority, 50))
+        priority_map = {"critical": 100, "high": 80, "medium": 60, "low": 40}
+        scores["priority"] = priority_map.get(priority, 50)
         
-        # Confidence
-        confidence = recommendation.get("ai_confidence", 80)
-        scores.append(confidence)
+        # Confidence score
+        scores["confidence"] = recommendation.get("ai_confidence", 80)
         
-        # Savings (normalized)
+        # Savings score (normalized)
         savings = recommendation.get("estimated_savings", 0)
-        if savings > 0:
-            savings_score = min(100, savings / 10)  # Normalize
-            scores.append(savings_score)
+        scores["savings"] = min(100, savings / 10) if savings > 0 else 50
         
-        # Stockout probability (inverse)
+        # Risk reduction
         stockout = recommendation.get("stockout_probability", 0.2)
-        stockout_score = (1 - stockout) * 100
-        scores.append(stockout_score)
+        scores["risk_reduction"] = (1 - stockout) * 100
         
-        # Average
-        return round(sum(scores) / len(scores), 1)
+        # Impact
+        impact = recommendation.get("expected_impact", "")
+        if "prevent" in impact.lower() or "critical" in impact.lower():
+            scores["impact"] = 90
+        elif "optimize" in impact.lower():
+            scores["impact"] = 70
+        else:
+            scores["impact"] = 50
+        
+        # Weighted average
+        total = sum(scores[k] * weights[k] for k in weights)
+        return round(total, 1)

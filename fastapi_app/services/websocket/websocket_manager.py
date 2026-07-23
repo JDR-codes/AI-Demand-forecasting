@@ -1,4 +1,3 @@
-# fastapi_app/services/websocket/websocket_manager.py
 from typing import Dict, List, Set, Any, Optional
 import json
 import logging
@@ -158,6 +157,39 @@ class ConnectionManager:
         }
         await self.send_to_channel("dashboard", message)
     
+    # ============================================================
+    # RECOMMENDATION METHODS
+    # ============================================================
+    
+    async def send_recommendation_update(self, data: dict):
+        """
+        Send recommendation update to clients subscribed to recommendations channel.
+        Uses send_to_channel() since broadcast_to_channel() doesn't exist.
+        """
+        await self.send_to_channel("recommendations", data)
+    
+    async def send_recommendation_executed(self, recommendation_id: int, sku: str):
+        """Send recommendation executed update."""
+        await self.send_recommendation_update({
+            "type": "recommendation_executed",
+            "id": recommendation_id,
+            "sku": sku,
+            "timestamp": datetime.utcnow().isoformat()
+        })
+    
+    async def send_recommendation_generated(self, forecast_job_id: str, count: int):
+        """Send recommendation generated update."""
+        await self.send_recommendation_update({
+            "type": "recommendation_generated",
+            "forecast_job_id": forecast_job_id,
+            "count": count,
+            "timestamp": datetime.utcnow().isoformat()
+        })
+    
+    # ============================================================
+    # UTILITY METHODS
+    # ============================================================
+    
     def get_connections_count(self) -> Dict[str, int]:
         """Get connection counts by channel."""
         return {channel: len(connections) for channel, connections in self.connections.items()}
@@ -180,39 +212,6 @@ class ConnectionManager:
                     self.connections[channel] = active
                 logger.info(f"Cleaned up {len(connections) - len(active)} inactive connections from {channel}")
 
-    # Add to fastapi_app/services/websocket/websocket_manager.py
 
-    async def send_recommendation_update(self, data: dict):
-        """Send recommendation update to all clients."""
-        await self.broadcast_to_channel("recommendations", data)
-    
-    async def send_recommendation_progress(self, job_id: str, progress: float, step: str, status: str):
-        """Send recommendation progress update."""
-        await self.send_recommendation_update({
-            "type": "recommendation_progress",
-            "job_id": job_id,
-            "progress": progress,
-            "step": step,
-            "status": status,
-            "timestamp": datetime.utcnow().isoformat()
-        })
-    
-    async def send_recommendation_completed(self, job_id: str, count: int):
-        """Send recommendation completed update."""
-        await self.send_recommendation_update({
-            "type": "recommendation_completed",
-            "job_id": job_id,
-            "count": count,
-            "timestamp": datetime.utcnow().isoformat()
-        })
-    
-    async def send_recommendation_executed(self, recommendation_id: int, sku: str):
-        """Send recommendation executed update."""
-        await self.send_recommendation_update({
-            "type": "recommendation_executed",
-            "id": recommendation_id,
-            "sku": sku,
-            "timestamp": datetime.utcnow().isoformat()
-        })
 # Global connection manager instance
 manager = ConnectionManager()

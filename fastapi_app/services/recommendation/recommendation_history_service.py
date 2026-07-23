@@ -69,7 +69,7 @@ class RecommendationHistoryService:
         db: Session,
         days: int = 30
     ) -> Dict[str, Any]:
-        """Get activity summary for dashboard."""
+        """Get activity summary."""
         start_date = datetime.utcnow() - timedelta(days=days)
         
         # Counts by action
@@ -92,19 +92,6 @@ class RecommendationHistoryService:
             func.date(RecommendationHistory.performed_at)
         ).all()
         
-        # User activity
-        user_activity = db.query(
-            RecommendationHistory.performed_by,
-            func.count(RecommendationHistory.id).label('count')
-        ).filter(
-            RecommendationHistory.performed_at >= start_date,
-            RecommendationHistory.performed_by.isnot(None)
-        ).group_by(
-            RecommendationHistory.performed_by
-        ).order_by(
-            desc('count')
-        ).limit(10).all()
-        
         return {
             "action_counts": {
                 a[0]: a[1] for a in action_counts
@@ -115,13 +102,6 @@ class RecommendationHistoryService:
                     "count": day[1]
                 }
                 for day in daily_activity
-            ],
-            "user_activity": [
-                {
-                    "user_id": u[0],
-                    "count": u[1]
-                }
-                for u in user_activity
             ],
             "period_days": days,
             "total_actions": sum(a[1] for a in action_counts)

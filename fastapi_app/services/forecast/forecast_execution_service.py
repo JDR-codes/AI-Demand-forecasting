@@ -1,7 +1,7 @@
 # fastapi_app/services/forecast/forecast_execution_service.py
 """
 Forecast Execution Service - Full pipeline execution with step tracking.
-Modified to trigger recommendation generation after completion.
+Modified to directly trigger recommendation generation after completion.
 """
 import asyncio
 import time
@@ -279,25 +279,106 @@ class ForecastExecutionService:
                 })
                 
                 # ============================================================
-                # 🔥 PHASE 1: Trigger Recommendation Generation
+                # 🔥 PHASE 1: Generate Recommendations Directly (No background job)
                 # ============================================================
                 try:
-                    from fastapi_app.services.recommendation.recommendation_execution_service import RecommendationExecutionService
+                    from fastapi_app.services.recommendation.recommendation_analysis_service import RecommendationAnalysisService
+                    from fastapi_app.services.recommendation.recommendation_generator_service import RecommendationGeneratorService
+                    from fastapi_app.services.recommendation.recommendation_result_service import RecommendationResultService
+                    from fastapi_app.services.forecast.forecast_result_service import ForecastResultService
                     
-                    logger.info(f"Triggering recommendation generation for forecast job {job_id}")
+                    logger.info(f"Generating recommendations for forecast job {job_id}")
                     
-                    # Get forecast summary to pass to recommendation
-                    forecast_summary = ForecastResultService.get_summary(db, job_id)
+                    # Get forecast results
+                    results = db.query(ForecastResult).filter(
+                        ForecastResult.forecast_job_id == job.id,
+                        ForecastResult.is_forecast == True
+                    ).order_by(ForecastResult.forecast_date).all()
                     
-                    # Start recommendation generation in background
-                    TaskManager.run_recommendation_job(job_id, forecast_summary)
-                    
-                    logger.info(f"Recommendation generation triggered for forecast job {job_id}")
+                    if results:
+                        # Get forecast summary
+                        summary = ForecastResultService.get_summary(db, job_id)
+                        
+                        if "error" not in summary:
+                            # 1. Analyze demand
+                            predictions = [r.prediction for r in results]
+                            dates = [r.forecast_date for r in results]
+                            
+                            analysis = RecommendationAnalysisService.analyze_demand(
+                                predictions=predictions,
+                                dates=dates,
+                                sku=job.sku,
+                                region=job.region,
+                                warehouse=job.warehouse,
+                                forecast_summary=summary
+                            )
+                            
+                            # 2. Analyze inventory
+                            analysis = RecommendationAnalysisService.analyze_inventory(analysis)
+                            
+                            # 3. Analyze risk
+                            analysis = RecommendationAnalysisService.analyze_risk(analysis)
+                            
+                            # 4. Generate recommendations
+                            result_data = [{
+                                "date": r.forecast_date,
+                                "prediction": r.prediction,
+                                "confidence_score": r.confidence_score,
+                                "is_peak": r.is_peak,
+                                "sku": r.sku,
+                                "region": r.region,
+                                "warehouse": r.warehouse
+                            } for r in results]
+                            
+                            recommendations = RecommendationGeneratorService.generate_recommendations(
+                                analysis=analysis,
+                                forecast_results=result_data,
+                                sku=job.sku,
+                                region=job.region,
+                                warehouse=job.warehouse,
+                                user_id=job.created_by,
+                                forecast_summary=summary
+                            )
+                            
+                            if recommendations:
+                                # 5. Save to database
+                                saved = RecommendationResultService.save_recommendations(
+                                    db=db,
+                                    recommendations=recommendations,
+                                    forecast_job_id=job_id
+                                )
+                                
+                                # 6. Send notifications for critical and high
+                                for rec in saved:
+                                    if rec.priority.value in ["critical", "high"]:
+                                        NotificationService.create_recommendation_notification(
+                                            db=db,
+                                            user_id=job.created_by,
+                                            success=True,
+                                            count=1,
+                                            message=f"Recommendation for {rec.sku}: {rec.action_label or 'Take action'}"
+                                        )
+                                
+                                # 7. Send dashboard refresh via WebSocket
+                                await manager.send_dashboard_update({
+                                    "type": "recommendation_generated",
+                                    "forecast_job_id": job_id,
+                                    "count": len(saved),
+                                    "timestamp": datetime.utcnow().isoformat()
+                                })
+                                
+                                logger.info(f"Generated {len(saved)} recommendations for forecast {job_id}")
+                            else:
+                                logger.info(f"No recommendations generated for forecast {job_id}")
+                        else:
+                            logger.warning(f"Could not get forecast summary: {summary.get('error')}")
+                    else:
+                        logger.warning(f"No forecast results found for {job_id}")
                     
                 except ImportError as e:
                     logger.warning(f"Recommendation module not available: {str(e)}")
                 except Exception as e:
-                    logger.error(f"Failed to trigger recommendation generation: {str(e)}")
+                    logger.error(f"Failed to generate recommendations: {str(e)}")
                 
         except Exception as e:
             logger.error(f"Forecast job {job_id} failed: {str(e)}")

@@ -61,8 +61,7 @@ class RecommendationResult(Base):
     __tablename__ = "recommendation_results"
     
     id = Column(Integer, primary_key=True, index=True)
-    recommendation_job_id = Column(Integer, ForeignKey("recommendation_jobs.id", ondelete="CASCADE"), index=True)
-    forecast_job_id = Column(String(36), ForeignKey("forecast_jobs.job_id"), nullable=True)
+    forecast_job_id = Column(String(36), ForeignKey("forecast_jobs.job_id"), nullable=True, index=True)
     
     # Core fields
     sku = Column(String(100), index=True, nullable=False)
@@ -141,7 +140,6 @@ class RecommendationResult(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
     
     # Relationships
-    recommendation_job = relationship("RecommendationJob", back_populates="recommendation_results")
     forecast_job = relationship("ForecastJob", foreign_keys=[forecast_job_id])
     executor = relationship("User", foreign_keys=[executed_by])
     ignorer = relationship("User", foreign_keys=[ignored_by])
@@ -153,7 +151,6 @@ class RecommendationResult(Base):
         Index('idx_rec_result_priority', 'priority'),
         Index('idx_rec_result_type', 'recommendation_type'),
         Index('idx_rec_result_category', 'category'),
-        Index('idx_rec_result_job', 'recommendation_job_id'),
         Index('idx_rec_result_forecast_job', 'forecast_job_id'),
         Index('idx_rec_result_warehouse', 'warehouse'),
         Index('idx_rec_result_created_at', 'created_at'),

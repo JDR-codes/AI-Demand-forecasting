@@ -83,14 +83,8 @@ from fastapi_app.models.training_job_model import TrainingJob, TrainingHistory, 
 from fastapi_app.models.training_configuration_model import TrainingConfiguration
 
 # ============================================================================
-# RECOMMENDATION MODELS - UPDATED
+# RECOMMENDATION MODELS - UPDATED (No job models)
 # ============================================================================
-from fastapi_app.models.recommendation_job_model import (
-    RecommendationJob,
-    RecommendationJobStatus,
-    RecommendationJobStep,
-    RecommendationJobStepDetail
-)
 from fastapi_app.models.recommendation_result_model import (
     RecommendationResult,
     RecommendationResultStatus,
@@ -207,11 +201,7 @@ __all__ = [
     'TrainingJobStepDetail',
     'TrainingConfiguration',
     
-    # Recommendation - UPDATED
-    'RecommendationJob',
-    'RecommendationJobStatus',
-    'RecommendationJobStep',
-    'RecommendationJobStepDetail',
+    # Recommendation - UPDATED (No job models)
     'RecommendationResult',
     'RecommendationResultStatus',
     'RecommendationResultPriority',

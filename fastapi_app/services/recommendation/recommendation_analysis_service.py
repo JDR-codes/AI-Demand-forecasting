@@ -1,6 +1,7 @@
 # fastapi_app/services/recommendation/recommendation_analysis_service.py
 """
 Recommendation Analysis Service - Multi-dimensional analysis for recommendations.
+Only performs analysis, no database operations.
 """
 from typing import Dict, Any, List, Optional
 from datetime import datetime
@@ -89,9 +90,7 @@ class RecommendationAnalysisService:
             
             "sku": sku,
             "region": region,
-            "warehouse": warehouse,
-            "predictions": predictions,
-            "dates": [d.isoformat() for d in dates] if dates else []
+            "warehouse": warehouse
         }
     
     @staticmethod

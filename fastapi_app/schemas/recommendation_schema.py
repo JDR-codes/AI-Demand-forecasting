@@ -1,6 +1,6 @@
 # fastapi_app/schemas/recommendation_schema.py
 """
-Recommendation Schemas - Updated for RecommendationResult model.
+Recommendation Schemas - Updated for simplified recommendation system.
 """
 from datetime import datetime
 from typing import Optional, List, Dict, Any
@@ -59,22 +59,12 @@ class RecommendationCategory(str, Enum):
     RISK_MANAGEMENT = "risk_management"
 
 
-class RecommendationJobStatus(str, Enum):
-    QUEUED = "queued"
-    RUNNING = "running"
-    PAUSED = "paused"
-    COMPLETED = "completed"
-    FAILED = "failed"
-    CANCELLED = "cancelled"
-
-
 # ============================================================================
 # RECOMMENDATION SCHEMAS
 # ============================================================================
 
 class RecommendationResponse(BaseModel):
     id: int
-    recommendation_job_id: Optional[int] = None
     forecast_job_id: Optional[str] = None
     
     sku: str
@@ -163,6 +153,7 @@ class RecommendationCreate(BaseModel):
     forecast_value: Optional[float] = None
     supplier_name: Optional[str] = None
     key_details: Optional[List[Dict[str, Any]]] = None
+    forecast_job_id: Optional[str] = None
 
 
 class RecommendationUpdate(BaseModel):
@@ -192,20 +183,14 @@ class RecommendationDashboardResponse(BaseModel):
     pending: int
     executed: int
     ignored: int
-    execution_rate: float
     
-    executed_today: int
-    today_savings: float
+    critical: int
+    high: int
     total_savings: float
-    
     average_confidence: float
-    average_risk: float
     
     priority_breakdown: Dict[str, int]
     type_breakdown: Dict[str, int]
-    category_breakdown: Dict[str, int]
-    warehouse_breakdown: Dict[str, int]
-    supplier_breakdown: Dict[str, int]
     
     top_skus: List[Dict[str, Any]]
     recent_activity: List[Dict[str, Any]]
@@ -215,85 +200,36 @@ class RecommendationDashboardResponse(BaseModel):
 class RecommendationTrendResponse(BaseModel):
     date: str
     generated: int
-    savings: float
     executed: int
-    executed_savings: float
-    running_generated: int
-    running_executed: int
-    running_savings: float
+    savings: float
 
 
 # ============================================================================
-# JOB SCHEMAS
+# GENERATE SCHEMAS
 # ============================================================================
 
-class RecommendationJobResponse(BaseModel):
-    id: int
-    job_id: str
+class GenerateRecommendationsRequest(BaseModel):
     forecast_job_id: str
-    
-    status: RecommendationJobStatus
-    progress_percentage: float
-    current_step: int
-    current_step_name: Optional[str] = None
-    
-    failed_step: Optional[int] = None
-    failed_step_name: Optional[str] = None
-    current_step_message: Optional[str] = None
-    
-    total_recommendations: int
-    saved_recommendations: int
-    duplicates_removed: int
-    
-    forecast_summary: Optional[Dict[str, Any]] = None
-    analysis_version: Optional[str] = None
-    generator_version: Optional[str] = None
-    recommendation_score: Optional[float] = None
-    
-    started_at: Optional[datetime] = None
-    completed_at: Optional[datetime] = None
-    paused_at: Optional[datetime] = None
-    estimated_completion: Optional[datetime] = None
-    elapsed_time: Optional[float] = None
-    remaining_seconds: Optional[float] = None
-    total_processing_time: Optional[float] = None
-    job_duration: Optional[float] = None
-    
-    started_by: Optional[int] = None
-    created_by: Optional[int] = None
-    created_at: datetime
-    updated_at: datetime
-    
-    metrics: Optional[Dict[str, Any]] = None
-    error_message: Optional[str] = None
-    
-    class Config:
-        from_attributes = True
 
 
-class RecommendationJobStatusResponse(BaseModel):
-    status: str
-    progress: float
-    step: Optional[str] = None
-    step_number: Optional[int] = None
-    step_message: Optional[str] = None
-    remaining_time: Optional[float] = None
-    elapsed_time: Optional[float] = None
-    estimated_completion: Optional[str] = None
-    started_at: Optional[str] = None
-    completed_at: Optional[str] = None
-    error_message: Optional[str] = None
-    failed_step: Optional[int] = None
-    failed_step_name: Optional[str] = None
-    total_recommendations: int
-    saved_recommendations: int
-    duplicates_removed: int
-    recommendation_score: Optional[float] = None
+class GenerateRecommendationsResponse(BaseModel):
+    success: bool
+    message: str
+    count: int
+    recommendations: List[RecommendationResponse] = []
 
 
 # ============================================================================
 # ACTION SCHEMAS
 # ============================================================================
+
+class IgnoreRequest(BaseModel):
+    reason: Optional[str] = None
+
+
+class ExecuteRequest(BaseModel):
+    notes: Optional[str] = None
+
 
 class BulkActionResponse(BaseModel):
     success_count: int
@@ -319,7 +255,6 @@ class ExecuteSummaryResponse(BaseModel):
 class RecommendationHistoryResponse(BaseModel):
     id: int
     recommendation_id: int
-    recommendation_job_id: Optional[int] = None
     
     action: str
     previous_status: Optional[str] = None
@@ -327,12 +262,6 @@ class RecommendationHistoryResponse(BaseModel):
     
     performed_by: Optional[int] = None
     reason: Optional[str] = None
-    details: Optional[Dict[str, Any]] = None
-    
-    estimated_savings: Optional[float] = None
-    ai_confidence: Optional[float] = None
-    recommendation_score: Optional[float] = None
-    forecast_value: Optional[float] = None
     
     performed_at: datetime
     

@@ -1,8 +1,8 @@
 """initial
 
-Revision ID: 30d02806579f
+Revision ID: 9896f1b63766
 Revises: 
-Create Date: 2026-07-20 12:34:36.501694
+Create Date: 2026-07-23 09:26:31.499127
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = '30d02806579f'
+revision: str = '9896f1b63766'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -106,6 +106,26 @@ def upgrade() -> None:
     op.create_index(op.f('ix_excess_stock_id'), 'excess_stock', ['id'], unique=False)
     op.create_index(op.f('ix_excess_stock_sku'), 'excess_stock', ['sku'], unique=False)
     op.create_index(op.f('ix_excess_stock_warehouse'), 'excess_stock', ['warehouse'], unique=False)
+    op.create_table('inventory_alerts',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('sku', sa.String(length=100), nullable=True),
+    sa.Column('warehouse', sa.String(length=100), nullable=True),
+    sa.Column('alert_type', sa.String(length=50), nullable=False),
+    sa.Column('message', sa.Text(), nullable=False),
+    sa.Column('severity', sa.String(length=20), nullable=False),
+    sa.Column('is_read', sa.Boolean(), nullable=True),
+    sa.Column('resolved_at', sa.DateTime(), nullable=True),
+    sa.Column('created_at', sa.DateTime(), nullable=False),
+    sa.PrimaryKeyConstraint('id')
+    )
+    op.create_index('idx_inventory_alerts_created_at', 'inventory_alerts', ['created_at'], unique=False)
+    op.create_index('idx_inventory_alerts_severity', 'inventory_alerts', ['severity'], unique=False)
+    op.create_index('idx_inventory_alerts_sku', 'inventory_alerts', ['sku'], unique=False)
+    op.create_index('idx_inventory_alerts_type', 'inventory_alerts', ['alert_type'], unique=False)
+    op.create_index('idx_inventory_alerts_warehouse', 'inventory_alerts', ['warehouse'], unique=False)
+    op.create_index(op.f('ix_inventory_alerts_id'), 'inventory_alerts', ['id'], unique=False)
+    op.create_index(op.f('ix_inventory_alerts_sku'), 'inventory_alerts', ['sku'], unique=False)
+    op.create_index(op.f('ix_inventory_alerts_warehouse'), 'inventory_alerts', ['warehouse'], unique=False)
     op.create_table('inventory_skus',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('sku', sa.String(length=100), nullable=False),
@@ -137,9 +157,19 @@ def upgrade() -> None:
     sa.Column('recommended_transfer_date', sa.DateTime(), nullable=False),
     sa.Column('expected_days_in_transit', sa.Integer(), nullable=False),
     sa.Column('status', sa.String(length=50), nullable=False),
+    sa.Column('approval_status', sa.String(length=50), nullable=True),
+    sa.Column('approved_by', sa.String(length=100), nullable=True),
+    sa.Column('completed_by', sa.String(length=100), nullable=True),
+    sa.Column('expected_arrival', sa.DateTime(), nullable=True),
+    sa.Column('actual_arrival', sa.DateTime(), nullable=True),
+    sa.Column('vehicle', sa.String(length=100), nullable=True),
+    sa.Column('driver', sa.String(length=100), nullable=True),
+    sa.Column('tracking_number', sa.String(length=100), nullable=True),
+    sa.Column('transfer_number', sa.String(length=50), nullable=True),
     sa.Column('created_at', sa.DateTime(), nullable=False),
     sa.Column('completed_at', sa.DateTime(), nullable=True),
-    sa.PrimaryKeyConstraint('id')
+    sa.PrimaryKeyConstraint('id'),
+    sa.UniqueConstraint('transfer_number')
     )
     op.create_index(op.f('ix_inventory_transfers_id'), 'inventory_transfers', ['id'], unique=False)
     op.create_index(op.f('ix_inventory_transfers_sku'), 'inventory_transfers', ['sku'], unique=False)
@@ -164,20 +194,6 @@ def upgrade() -> None:
     )
     op.create_index(op.f('ix_permissions_id'), 'permissions', ['id'], unique=False)
     op.create_index(op.f('ix_permissions_name'), 'permissions', ['name'], unique=True)
-    op.create_table('recommendations',
-    sa.Column('id', sa.Integer(), nullable=False),
-    sa.Column('sku', sa.String(length=100), nullable=False),
-    sa.Column('recommendation_type', sa.String(length=100), nullable=False),
-    sa.Column('priority', sa.String(length=50), nullable=False),
-    sa.Column('suggested_action', sa.String(length=255), nullable=False),
-    sa.Column('quantity', sa.Float(), nullable=False),
-    sa.Column('status', sa.String(length=50), nullable=False),
-    sa.Column('created_at', sa.DateTime(), nullable=False),
-    sa.Column('updated_at', sa.DateTime(), nullable=False),
-    sa.PrimaryKeyConstraint('id')
-    )
-    op.create_index(op.f('ix_recommendations_id'), 'recommendations', ['id'], unique=False)
-    op.create_index(op.f('ix_recommendations_sku'), 'recommendations', ['sku'], unique=False)
     op.create_table('reorder_points',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('sku', sa.String(length=100), nullable=False),
@@ -242,20 +258,6 @@ def upgrade() -> None:
     op.create_index(op.f('ix_safety_stock_calculations_id'), 'safety_stock_calculations', ['id'], unique=False)
     op.create_index(op.f('ix_safety_stock_calculations_sku'), 'safety_stock_calculations', ['sku'], unique=False)
     op.create_index(op.f('ix_safety_stock_calculations_warehouse'), 'safety_stock_calculations', ['warehouse'], unique=False)
-    op.create_table('scenarios',
-    sa.Column('id', sa.Integer(), nullable=False),
-    sa.Column('name', sa.String(length=255), nullable=False),
-    sa.Column('description', sa.String(length=1024), nullable=True),
-    sa.Column('parameters', sa.JSON(), nullable=True),
-    sa.Column('status', sa.String(length=50), nullable=False),
-    sa.Column('last_run_at', sa.DateTime(), nullable=True),
-    sa.Column('last_run_status', sa.String(length=50), nullable=True),
-    sa.Column('last_run_output', sa.JSON(), nullable=True),
-    sa.Column('created_at', sa.DateTime(), nullable=False),
-    sa.Column('updated_at', sa.DateTime(), nullable=False),
-    sa.PrimaryKeyConstraint('id')
-    )
-    op.create_index(op.f('ix_scenarios_id'), 'scenarios', ['id'], unique=False)
     op.create_table('scheduler_history',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('job_id', sa.String(length=36), nullable=False),
@@ -273,6 +275,28 @@ def upgrade() -> None:
     op.create_index('idx_scheduler_history_status', 'scheduler_history', ['status'], unique=False)
     op.create_index('idx_scheduler_history_type', 'scheduler_history', ['job_type'], unique=False)
     op.create_index(op.f('ix_scheduler_history_id'), 'scheduler_history', ['id'], unique=False)
+    op.create_table('slow_moving_inventory',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('sku', sa.String(length=100), nullable=False),
+    sa.Column('warehouse', sa.String(length=100), nullable=False),
+    sa.Column('region', sa.String(length=100), nullable=True),
+    sa.Column('current_stock', sa.Float(), nullable=False),
+    sa.Column('avg_daily_sales', sa.Float(), nullable=True),
+    sa.Column('days_in_stock', sa.Float(), nullable=True),
+    sa.Column('turnover_ratio', sa.Float(), nullable=True),
+    sa.Column('last_sale_date', sa.DateTime(), nullable=True),
+    sa.Column('slow_moving_level', sa.String(length=50), nullable=True),
+    sa.Column('action_recommended', sa.String(length=100), nullable=True),
+    sa.Column('created_at', sa.DateTime(), nullable=False),
+    sa.Column('updated_at', sa.DateTime(), nullable=False),
+    sa.PrimaryKeyConstraint('id')
+    )
+    op.create_index('idx_slow_moving_level', 'slow_moving_inventory', ['slow_moving_level'], unique=False)
+    op.create_index('idx_slow_moving_sku', 'slow_moving_inventory', ['sku'], unique=False)
+    op.create_index('idx_slow_moving_warehouse', 'slow_moving_inventory', ['warehouse'], unique=False)
+    op.create_index(op.f('ix_slow_moving_inventory_id'), 'slow_moving_inventory', ['id'], unique=False)
+    op.create_index(op.f('ix_slow_moving_inventory_sku'), 'slow_moving_inventory', ['sku'], unique=False)
+    op.create_index(op.f('ix_slow_moving_inventory_warehouse'), 'slow_moving_inventory', ['warehouse'], unique=False)
     op.create_table('warehouse_inventory',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('sku', sa.String(length=100), nullable=False),
@@ -282,12 +306,17 @@ def upgrade() -> None:
     sa.Column('safety_stock', sa.Float(), nullable=True),
     sa.Column('reorder_point', sa.Float(), nullable=True),
     sa.Column('economic_order_quantity', sa.Float(), nullable=True),
+    sa.Column('inventory_value', sa.Float(), nullable=True),
     sa.Column('last_reorder_date', sa.DateTime(), nullable=True),
     sa.Column('last_reorder_quantity', sa.Float(), nullable=True),
     sa.Column('created_at', sa.DateTime(), nullable=False),
     sa.Column('updated_at', sa.DateTime(), nullable=False),
     sa.PrimaryKeyConstraint('id')
     )
+    op.create_index('idx_warehouse_inventory_inventory_value', 'warehouse_inventory', ['inventory_value'], unique=False)
+    op.create_index('idx_warehouse_inventory_region', 'warehouse_inventory', ['region'], unique=False)
+    op.create_index('idx_warehouse_inventory_sku', 'warehouse_inventory', ['sku'], unique=False)
+    op.create_index('idx_warehouse_inventory_warehouse', 'warehouse_inventory', ['warehouse'], unique=False)
     op.create_index(op.f('ix_warehouse_inventory_id'), 'warehouse_inventory', ['id'], unique=False)
     op.create_index(op.f('ix_warehouse_inventory_sku'), 'warehouse_inventory', ['sku'], unique=False)
     op.create_index(op.f('ix_warehouse_inventory_warehouse'), 'warehouse_inventory', ['warehouse'], unique=False)
@@ -354,6 +383,47 @@ def upgrade() -> None:
     sa.UniqueConstraint('email')
     )
     op.create_index(op.f('ix_users_id'), 'users', ['id'], unique=False)
+    op.create_table('inventory_history',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('sku', sa.String(length=100), nullable=False),
+    sa.Column('warehouse', sa.String(length=100), nullable=False),
+    sa.Column('old_stock', sa.Float(), nullable=False),
+    sa.Column('new_stock', sa.Float(), nullable=False),
+    sa.Column('change_amount', sa.Float(), nullable=False),
+    sa.Column('reason', sa.String(length=100), nullable=False),
+    sa.Column('reference', sa.String(length=100), nullable=True),
+    sa.Column('user_id', sa.Integer(), nullable=True),
+    sa.Column('ip_address', sa.String(length=50), nullable=True),
+    sa.Column('created_at', sa.DateTime(), nullable=False),
+    sa.ForeignKeyConstraint(['user_id'], ['users.id'], ),
+    sa.PrimaryKeyConstraint('id')
+    )
+    op.create_index('idx_inventory_history_created_at', 'inventory_history', ['created_at'], unique=False)
+    op.create_index('idx_inventory_history_reason', 'inventory_history', ['reason'], unique=False)
+    op.create_index('idx_inventory_history_sku', 'inventory_history', ['sku'], unique=False)
+    op.create_index('idx_inventory_history_warehouse', 'inventory_history', ['warehouse'], unique=False)
+    op.create_index(op.f('ix_inventory_history_id'), 'inventory_history', ['id'], unique=False)
+    op.create_index(op.f('ix_inventory_history_sku'), 'inventory_history', ['sku'], unique=False)
+    op.create_index(op.f('ix_inventory_history_warehouse'), 'inventory_history', ['warehouse'], unique=False)
+    op.create_table('inventory_movements',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('sku', sa.String(length=100), nullable=False),
+    sa.Column('warehouse', sa.String(length=100), nullable=False),
+    sa.Column('movement_type', sa.String(length=50), nullable=False),
+    sa.Column('quantity', sa.Float(), nullable=False),
+    sa.Column('reference_id', sa.String(length=100), nullable=True),
+    sa.Column('created_by', sa.Integer(), nullable=True),
+    sa.Column('created_at', sa.DateTime(), nullable=False),
+    sa.ForeignKeyConstraint(['created_by'], ['users.id'], ),
+    sa.PrimaryKeyConstraint('id')
+    )
+    op.create_index('idx_inventory_movements_created_at', 'inventory_movements', ['created_at'], unique=False)
+    op.create_index('idx_inventory_movements_sku', 'inventory_movements', ['sku'], unique=False)
+    op.create_index('idx_inventory_movements_type', 'inventory_movements', ['movement_type'], unique=False)
+    op.create_index('idx_inventory_movements_warehouse', 'inventory_movements', ['warehouse'], unique=False)
+    op.create_index(op.f('ix_inventory_movements_id'), 'inventory_movements', ['id'], unique=False)
+    op.create_index(op.f('ix_inventory_movements_sku'), 'inventory_movements', ['sku'], unique=False)
+    op.create_index(op.f('ix_inventory_movements_warehouse'), 'inventory_movements', ['warehouse'], unique=False)
     op.create_table('model_registry',
     sa.Column('id', sa.String(length=36), nullable=False),
     sa.Column('name', sa.String(length=255), nullable=False),
@@ -436,6 +506,68 @@ def upgrade() -> None:
     op.create_index(op.f('ix_refresh_tokens_id'), 'refresh_tokens', ['id'], unique=False)
     op.create_index(op.f('ix_refresh_tokens_jti'), 'refresh_tokens', ['jti'], unique=True)
     op.create_index(op.f('ix_refresh_tokens_user_id'), 'refresh_tokens', ['user_id'], unique=False)
+    op.create_table('scenario_comparisons',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('comparison_id', sa.String(length=36), nullable=False),
+    sa.Column('scenario_ids', sa.JSON(), nullable=False),
+    sa.Column('best_scenario_id', sa.Integer(), nullable=True),
+    sa.Column('comparison_summary', sa.JSON(), nullable=True),
+    sa.Column('comparison_chart', sa.JSON(), nullable=True),
+    sa.Column('created_by', sa.Integer(), nullable=True),
+    sa.Column('created_at', sa.DateTime(), nullable=True),
+    sa.ForeignKeyConstraint(['created_by'], ['users.id'], ),
+    sa.PrimaryKeyConstraint('id')
+    )
+    op.create_index('idx_scenario_comparison_created_at', 'scenario_comparisons', ['created_at'], unique=False)
+    op.create_index(op.f('ix_scenario_comparisons_comparison_id'), 'scenario_comparisons', ['comparison_id'], unique=True)
+    op.create_index(op.f('ix_scenario_comparisons_id'), 'scenario_comparisons', ['id'], unique=False)
+    op.create_table('scenarios',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('name', sa.String(length=255), nullable=False),
+    sa.Column('description', sa.String(length=1024), nullable=True),
+    sa.Column('time_horizon', sa.Integer(), nullable=True),
+    sa.Column('region', sa.String(length=100), nullable=True),
+    sa.Column('warehouse', sa.String(length=100), nullable=True),
+    sa.Column('category', sa.String(length=100), nullable=True),
+    sa.Column('sku', sa.String(length=100), nullable=True),
+    sa.Column('demand_surge', sa.Float(), nullable=True),
+    sa.Column('discount', sa.Float(), nullable=True),
+    sa.Column('price_change', sa.Float(), nullable=True),
+    sa.Column('supply_delay', sa.Integer(), nullable=True),
+    sa.Column('seasonal_impact', sa.Float(), nullable=True),
+    sa.Column('status', sa.Enum('DRAFT', 'CREATED', 'RUNNING', 'COMPLETED', 'FAILED', 'CANCELLED', name='scenariostatus'), nullable=False),
+    sa.Column('progress', sa.Float(), nullable=True),
+    sa.Column('forecast_model', sa.String(length=50), nullable=True),
+    sa.Column('parameters', sa.JSON(), nullable=True),
+    sa.Column('last_run_at', sa.DateTime(), nullable=True),
+    sa.Column('last_run_status', sa.String(length=50), nullable=True),
+    sa.Column('last_run_output', sa.JSON(), nullable=True),
+    sa.Column('created_by', sa.Integer(), nullable=True),
+    sa.Column('updated_by', sa.Integer(), nullable=True),
+    sa.Column('executed_by', sa.Integer(), nullable=True),
+    sa.Column('deleted_by', sa.Integer(), nullable=True),
+    sa.Column('exported_by', sa.Integer(), nullable=True),
+    sa.Column('created_at', sa.DateTime(), nullable=False),
+    sa.Column('updated_at', sa.DateTime(), nullable=False),
+    sa.Column('deleted_at', sa.DateTime(), nullable=True),
+    sa.Column('exported_at', sa.DateTime(), nullable=True),
+    sa.ForeignKeyConstraint(['created_by'], ['users.id'], ),
+    sa.ForeignKeyConstraint(['deleted_by'], ['users.id'], ),
+    sa.ForeignKeyConstraint(['executed_by'], ['users.id'], ),
+    sa.ForeignKeyConstraint(['exported_by'], ['users.id'], ),
+    sa.ForeignKeyConstraint(['updated_by'], ['users.id'], ),
+    sa.PrimaryKeyConstraint('id')
+    )
+    op.create_index('idx_scenario_category', 'scenarios', ['category'], unique=False)
+    op.create_index('idx_scenario_created_at', 'scenarios', ['created_at'], unique=False)
+    op.create_index('idx_scenario_created_by', 'scenarios', ['created_by'], unique=False)
+    op.create_index('idx_scenario_forecast_model', 'scenarios', ['forecast_model'], unique=False)
+    op.create_index('idx_scenario_last_run_status', 'scenarios', ['last_run_status'], unique=False)
+    op.create_index('idx_scenario_region', 'scenarios', ['region'], unique=False)
+    op.create_index('idx_scenario_sku', 'scenarios', ['sku'], unique=False)
+    op.create_index('idx_scenario_status', 'scenarios', ['status'], unique=False)
+    op.create_index('idx_scenario_warehouse', 'scenarios', ['warehouse'], unique=False)
+    op.create_index(op.f('ix_scenarios_id'), 'scenarios', ['id'], unique=False)
     op.create_table('sync_job_steps',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('sync_job_id', sa.Integer(), nullable=True),
@@ -571,6 +703,32 @@ def upgrade() -> None:
     op.create_index('idx_processing_jobs_upload', 'processing_jobs', ['upload_id'], unique=False)
     op.create_index(op.f('ix_processing_jobs_id'), 'processing_jobs', ['id'], unique=False)
     op.create_index(op.f('ix_processing_jobs_job_id'), 'processing_jobs', ['job_id'], unique=True)
+    op.create_table('scenario_runs',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('scenario_id', sa.Integer(), nullable=False),
+    sa.Column('run_id', sa.String(length=36), nullable=False),
+    sa.Column('status', sa.String(length=50), nullable=True),
+    sa.Column('progress', sa.Float(), nullable=True),
+    sa.Column('current_step', sa.String(length=100), nullable=True),
+    sa.Column('step_number', sa.Integer(), nullable=True),
+    sa.Column('total_steps', sa.Integer(), nullable=True),
+    sa.Column('logs', sa.JSON(), nullable=True),
+    sa.Column('started_at', sa.DateTime(), nullable=True),
+    sa.Column('completed_at', sa.DateTime(), nullable=True),
+    sa.Column('estimated_completion', sa.DateTime(), nullable=True),
+    sa.Column('duration_seconds', sa.Float(), nullable=True),
+    sa.Column('user_id', sa.Integer(), nullable=True),
+    sa.Column('error_message', sa.Text(), nullable=True),
+    sa.Column('created_at', sa.DateTime(), nullable=True),
+    sa.ForeignKeyConstraint(['scenario_id'], ['scenarios.id'], ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['user_id'], ['users.id'], ),
+    sa.PrimaryKeyConstraint('id')
+    )
+    op.create_index('idx_scenario_run_created_at', 'scenario_runs', ['created_at'], unique=False)
+    op.create_index('idx_scenario_run_scenario', 'scenario_runs', ['scenario_id'], unique=False)
+    op.create_index('idx_scenario_run_status', 'scenario_runs', ['status'], unique=False)
+    op.create_index(op.f('ix_scenario_runs_id'), 'scenario_runs', ['id'], unique=False)
+    op.create_index(op.f('ix_scenario_runs_run_id'), 'scenario_runs', ['run_id'], unique=True)
     op.create_table('sync_logs',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('datasource_id', sa.Integer(), nullable=True),
@@ -905,6 +1063,110 @@ def upgrade() -> None:
     op.create_index('idx_raw_suppliers_sync', 'raw_suppliers', ['sync_id'], unique=False)
     op.create_index('idx_raw_suppliers_upload', 'raw_suppliers', ['upload_id'], unique=False)
     op.create_index(op.f('ix_raw_suppliers_id'), 'raw_suppliers', ['id'], unique=False)
+    op.create_table('recommendation_results',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('forecast_job_id', sa.String(length=36), nullable=True),
+    sa.Column('sku', sa.String(length=100), nullable=False),
+    sa.Column('title', sa.String(length=255), nullable=False),
+    sa.Column('description', sa.Text(), nullable=True),
+    sa.Column('category', sa.Enum('REORDER', 'INVENTORY_OPTIMIZATION', 'PROCUREMENT', 'WAREHOUSE_OPTIMIZATION', 'OVERSTOCK_MANAGEMENT', 'SUPPLIER_MANAGEMENT', 'PRICING', 'DEMAND_MANAGEMENT', 'RISK_MANAGEMENT', name='recommendationresultcategory'), nullable=True),
+    sa.Column('recommendation_type', sa.Enum('REORDER', 'PROCUREMENT', 'TRANSFER_STOCK', 'WAREHOUSE_OPTIMIZATION', 'SAFETY_STOCK', 'SUPPLIER_DISCOUNT', 'BULK_PURCHASE', 'OVERSTOCK', 'CRITICAL_ALERT', 'INVENTORY_OPTIMIZATION', 'PROMOTION', 'PRICE_REDUCTION', 'DEMAND_SPIKE', 'DEMAND_DROP', 'SUPPLIER_RISK', 'SEASONAL_STOCK', 'LOW_CONFIDENCE_ALERT', name='recommendationresulttype'), nullable=False),
+    sa.Column('priority', sa.Enum('CRITICAL', 'HIGH', 'MEDIUM', 'LOW', name='recommendationresultpriority'), nullable=False),
+    sa.Column('status', sa.Enum('PENDING', 'EXECUTED', 'IGNORED', 'IN_PROGRESS', 'FAILED', name='recommendationresultstatus'), nullable=False),
+    sa.Column('business_reason', sa.Text(), nullable=True),
+    sa.Column('current_stock', sa.Float(), nullable=True),
+    sa.Column('recommended_quantity', sa.Float(), nullable=False),
+    sa.Column('lead_time', sa.String(length=50), nullable=True),
+    sa.Column('inventory_days', sa.Float(), nullable=True),
+    sa.Column('holding_cost', sa.Float(), nullable=True),
+    sa.Column('stockout_probability', sa.Float(), nullable=True),
+    sa.Column('estimated_savings', sa.Float(), nullable=True),
+    sa.Column('estimated_revenue', sa.Float(), nullable=True),
+    sa.Column('estimated_cost', sa.Float(), nullable=True),
+    sa.Column('estimated_loss', sa.Float(), nullable=True),
+    sa.Column('expected_impact', sa.String(length=255), nullable=True),
+    sa.Column('ai_confidence', sa.Float(), nullable=True),
+    sa.Column('recommendation_score', sa.Float(), nullable=True),
+    sa.Column('risk_score', sa.Float(), nullable=True),
+    sa.Column('forecast_summary', sa.JSON(), nullable=True),
+    sa.Column('forecast_accuracy', sa.Float(), nullable=True),
+    sa.Column('forecast_window', sa.Integer(), nullable=True),
+    sa.Column('related_forecast', sa.JSON(), nullable=True),
+    sa.Column('action_label', sa.String(length=255), nullable=True),
+    sa.Column('warehouse', sa.String(length=100), nullable=True),
+    sa.Column('region', sa.String(length=100), nullable=True),
+    sa.Column('forecast_value', sa.Float(), nullable=True),
+    sa.Column('current_demand', sa.Float(), nullable=True),
+    sa.Column('predicted_demand', sa.Float(), nullable=True),
+    sa.Column('supplier_name', sa.String(length=255), nullable=True),
+    sa.Column('supplier_discount_available', sa.Boolean(), nullable=True),
+    sa.Column('discount_days', sa.Integer(), nullable=True),
+    sa.Column('analysis', sa.JSON(), nullable=True),
+    sa.Column('key_details', sa.JSON(), nullable=True),
+    sa.Column('executed_by', sa.Integer(), nullable=True),
+    sa.Column('executed_at', sa.DateTime(), nullable=True),
+    sa.Column('ignored_by', sa.Integer(), nullable=True),
+    sa.Column('ignored_at', sa.DateTime(), nullable=True),
+    sa.Column('ignored_reason', sa.Text(), nullable=True),
+    sa.Column('execution_notes', sa.Text(), nullable=True),
+    sa.Column('execution_status', sa.String(length=50), nullable=True),
+    sa.Column('created_at', sa.DateTime(), nullable=False),
+    sa.Column('updated_at', sa.DateTime(), nullable=False),
+    sa.ForeignKeyConstraint(['executed_by'], ['users.id'], ),
+    sa.ForeignKeyConstraint(['forecast_job_id'], ['forecast_jobs.job_id'], ),
+    sa.ForeignKeyConstraint(['ignored_by'], ['users.id'], ),
+    sa.PrimaryKeyConstraint('id')
+    )
+    op.create_index('idx_rec_result_category', 'recommendation_results', ['category'], unique=False)
+    op.create_index('idx_rec_result_created_at', 'recommendation_results', ['created_at'], unique=False)
+    op.create_index('idx_rec_result_forecast_job', 'recommendation_results', ['forecast_job_id'], unique=False)
+    op.create_index('idx_rec_result_priority', 'recommendation_results', ['priority'], unique=False)
+    op.create_index('idx_rec_result_recommendation_score', 'recommendation_results', ['recommendation_score'], unique=False)
+    op.create_index('idx_rec_result_sku', 'recommendation_results', ['sku'], unique=False)
+    op.create_index('idx_rec_result_status', 'recommendation_results', ['status'], unique=False)
+    op.create_index('idx_rec_result_supplier_name', 'recommendation_results', ['supplier_name'], unique=False)
+    op.create_index('idx_rec_result_type', 'recommendation_results', ['recommendation_type'], unique=False)
+    op.create_index('idx_rec_result_warehouse', 'recommendation_results', ['warehouse'], unique=False)
+    op.create_index(op.f('ix_recommendation_results_forecast_job_id'), 'recommendation_results', ['forecast_job_id'], unique=False)
+    op.create_index(op.f('ix_recommendation_results_id'), 'recommendation_results', ['id'], unique=False)
+    op.create_index(op.f('ix_recommendation_results_sku'), 'recommendation_results', ['sku'], unique=False)
+    op.create_index(op.f('ix_recommendation_results_warehouse'), 'recommendation_results', ['warehouse'], unique=False)
+    op.create_table('scenario_results',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('scenario_id', sa.Integer(), nullable=False),
+    sa.Column('run_id', sa.Integer(), nullable=False),
+    sa.Column('demand_impact', sa.Float(), nullable=True),
+    sa.Column('inventory_impact', sa.Float(), nullable=True),
+    sa.Column('revenue_impact', sa.Float(), nullable=True),
+    sa.Column('stockout_risk', sa.Float(), nullable=True),
+    sa.Column('stockout_skus', sa.JSON(), nullable=True),
+    sa.Column('forecast_json', sa.JSON(), nullable=True),
+    sa.Column('inventory_json', sa.JSON(), nullable=True),
+    sa.Column('summary_json', sa.JSON(), nullable=True),
+    sa.Column('forecast_labels', sa.JSON(), nullable=True),
+    sa.Column('forecast_baseline', sa.JSON(), nullable=True),
+    sa.Column('forecast_simulation', sa.JSON(), nullable=True),
+    sa.Column('forecast_difference', sa.JSON(), nullable=True),
+    sa.Column('inventory_labels', sa.JSON(), nullable=True),
+    sa.Column('inventory_baseline', sa.JSON(), nullable=True),
+    sa.Column('inventory_simulation', sa.JSON(), nullable=True),
+    sa.Column('inventory_difference', sa.JSON(), nullable=True),
+    sa.Column('all_skus', sa.JSON(), nullable=True),
+    sa.Column('recommendation_ids', sa.JSON(), nullable=True),
+    sa.Column('summary_cards', sa.JSON(), nullable=True),
+    sa.Column('total_demand', sa.Float(), nullable=True),
+    sa.Column('total_inventory', sa.Float(), nullable=True),
+    sa.Column('total_revenue', sa.Float(), nullable=True),
+    sa.Column('stockout_count', sa.Integer(), nullable=True),
+    sa.Column('created_at', sa.DateTime(), nullable=True),
+    sa.ForeignKeyConstraint(['run_id'], ['scenario_runs.id'], ondelete='CASCADE'),
+    sa.ForeignKeyConstraint(['scenario_id'], ['scenarios.id'], ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id')
+    )
+    op.create_index('idx_scenario_result_created_at', 'scenario_results', ['created_at'], unique=False)
+    op.create_index('idx_scenario_result_run', 'scenario_results', ['run_id'], unique=False)
+    op.create_index('idx_scenario_result_scenario', 'scenario_results', ['scenario_id'], unique=False)
+    op.create_index(op.f('ix_scenario_results_id'), 'scenario_results', ['id'], unique=False)
     op.create_table('training_history',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('training_job_id', sa.String(length=36), nullable=True),
@@ -1011,12 +1273,36 @@ def upgrade() -> None:
     op.create_index('idx_valerror_sync', 'validation_errors', ['sync_id'], unique=False)
     op.create_index('idx_valerror_upload', 'validation_errors', ['upload_id'], unique=False)
     op.create_index(op.f('ix_validation_errors_id'), 'validation_errors', ['id'], unique=False)
+    op.create_table('recommendation_history',
+    sa.Column('id', sa.Integer(), nullable=False),
+    sa.Column('recommendation_id', sa.Integer(), nullable=False),
+    sa.Column('action', sa.String(length=50), nullable=False),
+    sa.Column('previous_status', sa.String(length=50), nullable=True),
+    sa.Column('new_status', sa.String(length=50), nullable=True),
+    sa.Column('performed_by', sa.Integer(), nullable=True),
+    sa.Column('reason', sa.Text(), nullable=True),
+    sa.Column('performed_at', sa.DateTime(), nullable=False),
+    sa.ForeignKeyConstraint(['performed_by'], ['users.id'], ),
+    sa.ForeignKeyConstraint(['recommendation_id'], ['recommendation_results.id'], ondelete='CASCADE'),
+    sa.PrimaryKeyConstraint('id')
+    )
+    op.create_index('idx_rec_history_action', 'recommendation_history', ['action'], unique=False)
+    op.create_index('idx_rec_history_performed_at', 'recommendation_history', ['performed_at'], unique=False)
+    op.create_index('idx_rec_history_performed_by', 'recommendation_history', ['performed_by'], unique=False)
+    op.create_index('idx_rec_history_recommendation_id', 'recommendation_history', ['recommendation_id'], unique=False)
+    op.create_index(op.f('ix_recommendation_history_id'), 'recommendation_history', ['id'], unique=False)
     # ### end Alembic commands ###
 
 
 def downgrade() -> None:
     """Downgrade schema."""
     # ### commands auto generated by Alembic - please adjust! ###
+    op.drop_index(op.f('ix_recommendation_history_id'), table_name='recommendation_history')
+    op.drop_index('idx_rec_history_recommendation_id', table_name='recommendation_history')
+    op.drop_index('idx_rec_history_performed_by', table_name='recommendation_history')
+    op.drop_index('idx_rec_history_performed_at', table_name='recommendation_history')
+    op.drop_index('idx_rec_history_action', table_name='recommendation_history')
+    op.drop_table('recommendation_history')
     op.drop_index(op.f('ix_validation_errors_id'), table_name='validation_errors')
     op.drop_index('idx_valerror_upload', table_name='validation_errors')
     op.drop_index('idx_valerror_sync', table_name='validation_errors')
@@ -1038,6 +1324,26 @@ def downgrade() -> None:
     op.drop_index('idx_training_history_trained_at', table_name='training_history')
     op.drop_index('idx_training_history_model_registry_id', table_name='training_history')
     op.drop_table('training_history')
+    op.drop_index(op.f('ix_scenario_results_id'), table_name='scenario_results')
+    op.drop_index('idx_scenario_result_scenario', table_name='scenario_results')
+    op.drop_index('idx_scenario_result_run', table_name='scenario_results')
+    op.drop_index('idx_scenario_result_created_at', table_name='scenario_results')
+    op.drop_table('scenario_results')
+    op.drop_index(op.f('ix_recommendation_results_warehouse'), table_name='recommendation_results')
+    op.drop_index(op.f('ix_recommendation_results_sku'), table_name='recommendation_results')
+    op.drop_index(op.f('ix_recommendation_results_id'), table_name='recommendation_results')
+    op.drop_index(op.f('ix_recommendation_results_forecast_job_id'), table_name='recommendation_results')
+    op.drop_index('idx_rec_result_warehouse', table_name='recommendation_results')
+    op.drop_index('idx_rec_result_type', table_name='recommendation_results')
+    op.drop_index('idx_rec_result_supplier_name', table_name='recommendation_results')
+    op.drop_index('idx_rec_result_status', table_name='recommendation_results')
+    op.drop_index('idx_rec_result_sku', table_name='recommendation_results')
+    op.drop_index('idx_rec_result_recommendation_score', table_name='recommendation_results')
+    op.drop_index('idx_rec_result_priority', table_name='recommendation_results')
+    op.drop_index('idx_rec_result_forecast_job', table_name='recommendation_results')
+    op.drop_index('idx_rec_result_created_at', table_name='recommendation_results')
+    op.drop_index('idx_rec_result_category', table_name='recommendation_results')
+    op.drop_table('recommendation_results')
     op.drop_index(op.f('ix_raw_suppliers_id'), table_name='raw_suppliers')
     op.drop_index('idx_raw_suppliers_upload', table_name='raw_suppliers')
     op.drop_index('idx_raw_suppliers_sync', table_name='raw_suppliers')
@@ -1112,6 +1418,12 @@ def downgrade() -> None:
     op.drop_index('idx_synclog_started', table_name='sync_logs')
     op.drop_index('idx_synclog_datasource', table_name='sync_logs')
     op.drop_table('sync_logs')
+    op.drop_index(op.f('ix_scenario_runs_run_id'), table_name='scenario_runs')
+    op.drop_index(op.f('ix_scenario_runs_id'), table_name='scenario_runs')
+    op.drop_index('idx_scenario_run_status', table_name='scenario_runs')
+    op.drop_index('idx_scenario_run_scenario', table_name='scenario_runs')
+    op.drop_index('idx_scenario_run_created_at', table_name='scenario_runs')
+    op.drop_table('scenario_runs')
     op.drop_index(op.f('ix_processing_jobs_job_id'), table_name='processing_jobs')
     op.drop_index(op.f('ix_processing_jobs_id'), table_name='processing_jobs')
     op.drop_index('idx_processing_jobs_upload', table_name='processing_jobs')
@@ -1143,6 +1455,21 @@ def downgrade() -> None:
     op.drop_index('idx_sync_job_steps_status', table_name='sync_job_steps')
     op.drop_index('idx_sync_job_steps_job', table_name='sync_job_steps')
     op.drop_table('sync_job_steps')
+    op.drop_index(op.f('ix_scenarios_id'), table_name='scenarios')
+    op.drop_index('idx_scenario_warehouse', table_name='scenarios')
+    op.drop_index('idx_scenario_status', table_name='scenarios')
+    op.drop_index('idx_scenario_sku', table_name='scenarios')
+    op.drop_index('idx_scenario_region', table_name='scenarios')
+    op.drop_index('idx_scenario_last_run_status', table_name='scenarios')
+    op.drop_index('idx_scenario_forecast_model', table_name='scenarios')
+    op.drop_index('idx_scenario_created_by', table_name='scenarios')
+    op.drop_index('idx_scenario_created_at', table_name='scenarios')
+    op.drop_index('idx_scenario_category', table_name='scenarios')
+    op.drop_table('scenarios')
+    op.drop_index(op.f('ix_scenario_comparisons_id'), table_name='scenario_comparisons')
+    op.drop_index(op.f('ix_scenario_comparisons_comparison_id'), table_name='scenario_comparisons')
+    op.drop_index('idx_scenario_comparison_created_at', table_name='scenario_comparisons')
+    op.drop_table('scenario_comparisons')
     op.drop_index(op.f('ix_refresh_tokens_user_id'), table_name='refresh_tokens')
     op.drop_index(op.f('ix_refresh_tokens_jti'), table_name='refresh_tokens')
     op.drop_index(op.f('ix_refresh_tokens_id'), table_name='refresh_tokens')
@@ -1162,6 +1489,22 @@ def downgrade() -> None:
     op.drop_index('idx_model_registry_deployment_status', table_name='model_registry')
     op.drop_index('idx_model_registry_best_accuracy', table_name='model_registry')
     op.drop_table('model_registry')
+    op.drop_index(op.f('ix_inventory_movements_warehouse'), table_name='inventory_movements')
+    op.drop_index(op.f('ix_inventory_movements_sku'), table_name='inventory_movements')
+    op.drop_index(op.f('ix_inventory_movements_id'), table_name='inventory_movements')
+    op.drop_index('idx_inventory_movements_warehouse', table_name='inventory_movements')
+    op.drop_index('idx_inventory_movements_type', table_name='inventory_movements')
+    op.drop_index('idx_inventory_movements_sku', table_name='inventory_movements')
+    op.drop_index('idx_inventory_movements_created_at', table_name='inventory_movements')
+    op.drop_table('inventory_movements')
+    op.drop_index(op.f('ix_inventory_history_warehouse'), table_name='inventory_history')
+    op.drop_index(op.f('ix_inventory_history_sku'), table_name='inventory_history')
+    op.drop_index(op.f('ix_inventory_history_id'), table_name='inventory_history')
+    op.drop_index('idx_inventory_history_warehouse', table_name='inventory_history')
+    op.drop_index('idx_inventory_history_sku', table_name='inventory_history')
+    op.drop_index('idx_inventory_history_reason', table_name='inventory_history')
+    op.drop_index('idx_inventory_history_created_at', table_name='inventory_history')
+    op.drop_table('inventory_history')
     op.drop_index(op.f('ix_users_id'), table_name='users')
     op.drop_table('users')
     op.drop_index(op.f('ix_sync_jobs_job_id'), table_name='sync_jobs')
@@ -1180,15 +1523,24 @@ def downgrade() -> None:
     op.drop_index(op.f('ix_warehouse_inventory_warehouse'), table_name='warehouse_inventory')
     op.drop_index(op.f('ix_warehouse_inventory_sku'), table_name='warehouse_inventory')
     op.drop_index(op.f('ix_warehouse_inventory_id'), table_name='warehouse_inventory')
+    op.drop_index('idx_warehouse_inventory_warehouse', table_name='warehouse_inventory')
+    op.drop_index('idx_warehouse_inventory_sku', table_name='warehouse_inventory')
+    op.drop_index('idx_warehouse_inventory_region', table_name='warehouse_inventory')
+    op.drop_index('idx_warehouse_inventory_inventory_value', table_name='warehouse_inventory')
     op.drop_table('warehouse_inventory')
+    op.drop_index(op.f('ix_slow_moving_inventory_warehouse'), table_name='slow_moving_inventory')
+    op.drop_index(op.f('ix_slow_moving_inventory_sku'), table_name='slow_moving_inventory')
+    op.drop_index(op.f('ix_slow_moving_inventory_id'), table_name='slow_moving_inventory')
+    op.drop_index('idx_slow_moving_warehouse', table_name='slow_moving_inventory')
+    op.drop_index('idx_slow_moving_sku', table_name='slow_moving_inventory')
+    op.drop_index('idx_slow_moving_level', table_name='slow_moving_inventory')
+    op.drop_table('slow_moving_inventory')
     op.drop_index(op.f('ix_scheduler_history_id'), table_name='scheduler_history')
     op.drop_index('idx_scheduler_history_type', table_name='scheduler_history')
     op.drop_index('idx_scheduler_history_status', table_name='scheduler_history')
     op.drop_index('idx_scheduler_history_started', table_name='scheduler_history')
     op.drop_index('idx_scheduler_history_job', table_name='scheduler_history')
     op.drop_table('scheduler_history')
-    op.drop_index(op.f('ix_scenarios_id'), table_name='scenarios')
-    op.drop_table('scenarios')
     op.drop_index(op.f('ix_safety_stock_calculations_warehouse'), table_name='safety_stock_calculations')
     op.drop_index(op.f('ix_safety_stock_calculations_sku'), table_name='safety_stock_calculations')
     op.drop_index(op.f('ix_safety_stock_calculations_id'), table_name='safety_stock_calculations')
@@ -1202,9 +1554,6 @@ def downgrade() -> None:
     op.drop_index(op.f('ix_reorder_points_sku'), table_name='reorder_points')
     op.drop_index(op.f('ix_reorder_points_id'), table_name='reorder_points')
     op.drop_table('reorder_points')
-    op.drop_index(op.f('ix_recommendations_sku'), table_name='recommendations')
-    op.drop_index(op.f('ix_recommendations_id'), table_name='recommendations')
-    op.drop_table('recommendations')
     op.drop_index(op.f('ix_permissions_name'), table_name='permissions')
     op.drop_index(op.f('ix_permissions_id'), table_name='permissions')
     op.drop_table('permissions')
@@ -1217,6 +1566,15 @@ def downgrade() -> None:
     op.drop_index(op.f('ix_inventory_skus_sku'), table_name='inventory_skus')
     op.drop_index(op.f('ix_inventory_skus_id'), table_name='inventory_skus')
     op.drop_table('inventory_skus')
+    op.drop_index(op.f('ix_inventory_alerts_warehouse'), table_name='inventory_alerts')
+    op.drop_index(op.f('ix_inventory_alerts_sku'), table_name='inventory_alerts')
+    op.drop_index(op.f('ix_inventory_alerts_id'), table_name='inventory_alerts')
+    op.drop_index('idx_inventory_alerts_warehouse', table_name='inventory_alerts')
+    op.drop_index('idx_inventory_alerts_type', table_name='inventory_alerts')
+    op.drop_index('idx_inventory_alerts_sku', table_name='inventory_alerts')
+    op.drop_index('idx_inventory_alerts_severity', table_name='inventory_alerts')
+    op.drop_index('idx_inventory_alerts_created_at', table_name='inventory_alerts')
+    op.drop_table('inventory_alerts')
     op.drop_index(op.f('ix_excess_stock_warehouse'), table_name='excess_stock')
     op.drop_index(op.f('ix_excess_stock_sku'), table_name='excess_stock')
     op.drop_index(op.f('ix_excess_stock_id'), table_name='excess_stock')

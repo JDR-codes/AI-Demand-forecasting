@@ -1,6 +1,6 @@
 # fastapi_app/routes/recommendation.py - Updated to use new generator
 """
-Recommendation Router - Single unified router for all recommendation endpoints.
+Recommendation Router - Simplified endpoints for Figma.
 """
 from fastapi import APIRouter, HTTPException, Depends, Query, BackgroundTasks
 from typing import List, Optional
@@ -14,124 +14,173 @@ from fastapi_app.models.recommendation_result_model import (
     RecommendationResult,
     RecommendationResultStatus
 )
-from fastapi_app.models.recommendation_job_model import RecommendationJob
+from fastapi_app.models.forecast_job_model import ForecastJob
+from fastapi_app.models.forecast_job_model import ForecastResult
 from fastapi_app.services.recommendation.recommendation_result_service import RecommendationResultService
 from fastapi_app.services.recommendation.recommendation_dashboard_service import RecommendationDashboardService
 from fastapi_app.services.recommendation.recommendation_history_service import RecommendationHistoryService
-from fastapi_app.services.recommendation.recommendation_execution_service import RecommendationExecutionService
-from fastapi_app.services.recommendation.recommendation_job_service import RecommendationJobService
+from fastapi_app.services.recommendation.recommendation_analysis_service import RecommendationAnalysisService
+from fastapi_app.services.recommendation.recommendation_generator_service import RecommendationGeneratorService
+from fastapi_app.services.forecast.forecast_result_service import ForecastResultService
 from fastapi_app.services.websocket.websocket_manager import manager
 from fastapi_app.services.notifications.notification_service import NotificationService
+from fastapi_app.schemas.recommendation_schema import (
+    GenerateRecommendationsRequest,
+    GenerateRecommendationsResponse,
+    IgnoreRequest,
+    ExecuteRequest,
+    BulkActionResponse
+)
+
+import logging
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/recommendations", tags=["Recommendations"])
 
 
 # ============================================================================
-# JOBS
+# GENERATE
 # ============================================================================
 
-@router.post("/jobs/from-forecast/{forecast_job_id}")
-def create_job_from_forecast(
-    forecast_job_id: str,
+@router.post("/generate", response_model=GenerateRecommendationsResponse)
+def generate_recommendations(
+    request: GenerateRecommendationsRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Create a recommendation job from a forecast."""
-    job = RecommendationExecutionService.start_job_from_forecast(
+    """
+    Generate recommendations from a completed forecast.
+    This is the main entry point - no background jobs.
+    """
+    forecast_job_id = request.forecast_job_id
+    
+    # Get forecast job
+    forecast_job = db.query(ForecastJob).filter(
+        ForecastJob.job_id == forecast_job_id
+    ).first()
+    
+    if not forecast_job:
+        raise HTTPException(status_code=404, detail="Forecast job not found")
+    
+    if forecast_job.status != "completed":
+        raise HTTPException(status_code=400, detail="Forecast job is not completed")
+    
+    # Check if recommendations already exist
+    existing = db.query(RecommendationResult).filter(
+        RecommendationResult.forecast_job_id == forecast_job_id
+    ).first()
+    
+    if existing:
+        # Return existing recommendations
+        recs = RecommendationResultService.get_by_forecast_job(db, forecast_job_id)
+        return GenerateRecommendationsResponse(
+            success=True,
+            message=f"Recommendations already exist for this forecast",
+            count=len(recs),
+            recommendations=recs
+        )
+    
+    # Get forecast results
+    results = db.query(ForecastResult).filter(
+        ForecastResult.forecast_job_id == forecast_job.id,
+        ForecastResult.is_forecast == True
+    ).order_by(ForecastResult.forecast_date).all()
+    
+    if not results:
+        raise HTTPException(status_code=404, detail="No forecast results found")
+    
+    # Get forecast summary
+    summary = ForecastResultService.get_summary(db, forecast_job_id)
+    if "error" in summary:
+        raise HTTPException(status_code=400, detail=summary["error"])
+    
+    # 1. Analyze demand
+    predictions = [r.prediction for r in results]
+    dates = [r.forecast_date for r in results]
+    
+    analysis = RecommendationAnalysisService.analyze_demand(
+        predictions=predictions,
+        dates=dates,
+        sku=forecast_job.sku,
+        region=forecast_job.region,
+        warehouse=forecast_job.warehouse,
+        forecast_summary=summary
+    )
+    
+    # 2. Analyze inventory
+    analysis = RecommendationAnalysisService.analyze_inventory(analysis)
+    
+    # 3. Analyze risk
+    analysis = RecommendationAnalysisService.analyze_risk(analysis)
+    
+    # 4. Generate recommendations
+    result_data = [{
+        "date": r.forecast_date,
+        "prediction": r.prediction,
+        "confidence_score": r.confidence_score,
+        "is_peak": r.is_peak,
+        "sku": r.sku,
+        "region": r.region,
+        "warehouse": r.warehouse
+    } for r in results]
+    
+    recommendations = RecommendationGeneratorService.generate_recommendations(
+        analysis=analysis,
+        forecast_results=result_data,
+        sku=forecast_job.sku,
+        region=forecast_job.region,
+        warehouse=forecast_job.warehouse,
+        user_id=current_user.id,
+        forecast_summary=summary
+    )
+    
+    if not recommendations:
+        return GenerateRecommendationsResponse(
+            success=True,
+            message="No recommendations generated",
+            count=0,
+            recommendations=[]
+        )
+    
+    # 5. Save to database
+    saved = RecommendationResultService.save_recommendations(
         db=db,
+        recommendations=recommendations,
         forecast_job_id=forecast_job_id
     )
-    if not job:
-        raise HTTPException(status_code=400, detail="Could not create recommendation job")
-    return job
-
-
-@router.get("/jobs")
-def list_jobs(
-    status: Optional[str] = None,
-    limit: int = Query(50, ge=1, le=100),
-    offset: int = Query(0, ge=0),
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    """List recommendation jobs."""
-    jobs = RecommendationJobService.get_jobs(db, status, limit, offset)
-    return {"items": jobs, "total": len(jobs), "limit": limit, "offset": offset}
-
-
-@router.get("/jobs/{job_id}")
-def get_job(
-    job_id: str,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    """Get a specific job."""
-    job = RecommendationJobService.get_job(db, job_id)
-    if not job:
-        raise HTTPException(status_code=404, detail="Job not found")
-    return job
-
-
-@router.get("/jobs/{job_id}/status")
-def get_job_status(
-    job_id: str,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    """Get job status with progress."""
-    status = RecommendationExecutionService.get_live_status(db, job_id)
-    if "error" in status:
-        raise HTTPException(status_code=404, detail=status["error"])
-    return status
-
-
-@router.post("/jobs/{job_id}/pause")
-def pause_job(
-    job_id: str,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    """Pause a running job."""
-    if not RecommendationExecutionService.pause_job(db, job_id):
-        raise HTTPException(status_code=404, detail="Job not found or cannot be paused")
-    return {"message": "Job paused"}
-
-
-@router.post("/jobs/{job_id}/resume")
-def resume_job(
-    job_id: str,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    """Resume a paused job."""
-    if not RecommendationExecutionService.resume_job(db, job_id):
-        raise HTTPException(status_code=404, detail="Job not found or cannot be resumed")
-    return {"message": "Job resumed"}
-
-
-@router.post("/jobs/{job_id}/cancel")
-def cancel_job(
-    job_id: str,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    """Cancel a job."""
-    if not RecommendationExecutionService.cancel_job(db, job_id):
-        raise HTTPException(status_code=404, detail="Job not found or cannot be cancelled")
-    return {"message": "Job cancelled"}
-
-
-@router.post("/jobs/{job_id}/retry")
-def retry_job(
-    job_id: str,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    """Retry a failed job."""
-    job = RecommendationExecutionService.retry_job(db, job_id)
-    if not job:
-        raise HTTPException(status_code=404, detail="Job not found")
-    return {"message": "Job retried", "new_job_id": job.job_id}
+    
+    # 6. Send notifications for critical and high
+    for rec in saved:
+        if rec.priority.value in ["critical", "high"]:
+            NotificationService.create_recommendation_notification(
+                db=db,
+                user_id=current_user.id,
+                success=True,
+                count=1,
+                message=f"Recommendation for {rec.sku}: {rec.action_label or 'Take action'}"
+            )
+    
+    # 7. Send dashboard refresh via WebSocket
+    import asyncio
+    try:
+        loop = asyncio.get_running_loop()
+        loop.create_task(
+            manager.send_dashboard_update({
+                "type": "recommendation_generated",
+                "forecast_job_id": forecast_job_id,
+                "count": len(saved),
+                "timestamp": datetime.utcnow().isoformat()
+            })
+        )
+    except RuntimeError:
+        pass
+    
+    return GenerateRecommendationsResponse(
+        success=True,
+        message=f"Generated {len(saved)} recommendations",
+        count=len(saved),
+        recommendations=saved
+    )
 
 
 # ============================================================================
@@ -297,35 +346,40 @@ def get_recommendation(
 @router.post("/{recommendation_id}/execute")
 def execute_recommendation(
     recommendation_id: int,
-    notes: Optional[str] = Query(None),
+    request: ExecuteRequest = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """Execute a recommendation."""
+    notes = request.notes if request else None
+    
     rec = RecommendationResultService.execute(db, recommendation_id, current_user.id, notes)
     if not rec:
         raise HTTPException(status_code=404, detail="Recommendation not found or already processed")
     
     # Send notification
-    NotificationService.create_notification(
+    NotificationService.create_recommendation_notification(
         db=db,
         user_id=current_user.id,
-        title=f"✅ Recommendation Executed: {rec.sku}",
-        message=f"Recommendation for {rec.sku} executed successfully.",
-        notification_type="recommendation_executed",
-        priority="info"
+        success=True,
+        count=1,
+        message=f"✅ Recommendation executed for {rec.sku}"
     )
     
     # WebSocket update
     import asyncio
-    asyncio.create_task(
-        manager.send_recommendation_update({
-            "type": "recommendation_executed",
-            "id": rec.id,
-            "sku": rec.sku,
-            "timestamp": datetime.utcnow().isoformat()
-        })
-    )
+    try:
+        loop = asyncio.get_running_loop()
+        loop.create_task(
+            manager.send_dashboard_update({
+                "type": "recommendation_executed",
+                "id": rec.id,
+                "sku": rec.sku,
+                "timestamp": datetime.utcnow().isoformat()
+            })
+        )
+    except RuntimeError:
+        pass
     
     return rec
 
@@ -333,23 +387,24 @@ def execute_recommendation(
 @router.post("/{recommendation_id}/ignore")
 def ignore_recommendation(
     recommendation_id: int,
-    reason: Optional[str] = Query(None),
+    request: IgnoreRequest = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
     """Ignore a recommendation."""
+    reason = request.reason if request else None
+    
     rec = RecommendationResultService.ignore(db, recommendation_id, current_user.id, reason)
     if not rec:
         raise HTTPException(status_code=404, detail="Recommendation not found or already processed")
     
     # Send notification
-    NotificationService.create_notification(
+    NotificationService.create_recommendation_notification(
         db=db,
         user_id=current_user.id,
-        title=f"❌ Recommendation Ignored: {rec.sku}",
-        message=f"Recommendation for {rec.sku} was ignored. Reason: {reason or 'Not specified'}",
-        notification_type="recommendation_ignored",
-        priority="info"
+        success=False,
+        count=1,
+        message=f"❌ Recommendation ignored for {rec.sku}"
     )
     
     return rec
@@ -392,13 +447,12 @@ def execute_all(
     result = RecommendationResultService.execute_all(db, ids, current_user.id)
     
     if result["success_count"] > 0:
-        NotificationService.create_notification(
+        NotificationService.create_recommendation_notification(
             db=db,
             user_id=current_user.id,
-            title=f"✅ Bulk Execute Completed",
-            message=f"Executed {result['success_count']} recommendations",
-            notification_type="recommendation_bulk",
-            priority="info"
+            success=True,
+            count=result["success_count"],
+            message=f"✅ Executed {result['success_count']} recommendations"
         )
     
     return result
@@ -424,13 +478,12 @@ def ignore_all(
     result = RecommendationResultService.ignore_all(db, ids, current_user.id, reason)
     
     if result["success_count"] > 0:
-        NotificationService.create_notification(
+        NotificationService.create_recommendation_notification(
             db=db,
             user_id=current_user.id,
-            title=f"❌ Bulk Ignore Completed",
-            message=f"Ignored {result['success_count']} recommendations",
-            notification_type="recommendation_bulk",
-            priority="info"
+            success=False,
+            count=result["success_count"],
+            message=f"❌ Ignored {result['success_count']} recommendations"
         )
     
     return result
