@@ -2,10 +2,9 @@
 """
 Model Config Service - Handles model configuration for Figma popup.
 """
-from turtle import pd
 from typing import Optional, Dict, Any
 from sqlalchemy.orm import Session
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from fastapi_app.models.model_registry_model import ModelRegistry
 from fastapi_app.models.training_configuration_model import TrainingConfiguration
@@ -48,7 +47,7 @@ class ModelConfigService:
             "accuracy": model.best_accuracy,
             "dataset_size": model.training_size,
             "date_range": {
-                "start": (datetime.utcnow() - pd.Timedelta(days=30)).strftime("%Y-%m-%d"),
+                "start": (datetime.utcnow() - timedelta(days=30)).strftime("%Y-%m-%d"),
                 "end": datetime.utcnow().strftime("%Y-%m-%d")
             },
             "last_updated": model.updated_at.isoformat() if model.updated_at else None

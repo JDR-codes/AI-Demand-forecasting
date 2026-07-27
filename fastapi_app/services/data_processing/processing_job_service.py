@@ -175,15 +175,13 @@ class ProcessingJobService:
                 db.commit()
                 
                 # Send WebSocket update
-                asyncio.create_task(
-                    manager.send_progress_update(
-                        channel="processing",
-                        job_id=job.job_id,
-                        progress=progress,
-                        step=step_name,
-                        status="running",
-                        remaining_time=int(job.eta_seconds) if job.eta_seconds else None
-                    )
+                manager.send_progress_update_sync(
+                    channel="processing",
+                    job_id=job.job_id,
+                    progress=progress,
+                    step=step_name,
+                    status="running",
+                    remaining_time=int(job.eta_seconds) if job.eta_seconds else None
                 )
             
             if job.status != ProcessingJobStatus.CANCELLED:
@@ -195,14 +193,12 @@ class ProcessingJobService:
                 
                 ProcessingLogService.log_info(db, job.id, "Processing completed successfully", "complete")
                 
-                asyncio.create_task(
-                    manager.send_progress_update(
-                        channel="processing",
-                        job_id=job.job_id,
-                        progress=100,
-                        step="Completed",
-                        status="completed"
-                    )
+                manager.send_progress_update_sync(
+                    channel="processing",
+                    job_id=job.job_id,
+                    progress=100,
+                    step="Completed",
+                    status="completed"
                 )
                 
                 # Notification
@@ -223,14 +219,12 @@ class ProcessingJobService:
             db.commit()
             ProcessingLogService.log_error(db, job.id, str(e), "error")
             
-            asyncio.create_task(
-                manager.send_progress_update(
-                    channel="processing",
-                    job_id=job.job_id,
-                    progress=job.progress_percentage,
-                    step="Failed",
-                    status="failed"
-                )
+            manager.send_progress_update_sync(
+                channel="processing",
+                job_id=job.job_id,
+                progress=job.progress_percentage,
+                step="Failed",
+                status="failed"
             )
             
             if job.created_by:
@@ -290,6 +284,22 @@ class ProcessingJobService:
     @staticmethod
     def _step_ingestion(db: Session, job: ProcessingJob, df: pd.DataFrame) -> pd.DataFrame:
         """Step 1: Data Ingestion."""
+        # Normalize column names to lowercase and strip whitespace
+        df.columns = [c.lower().strip() for c in df.columns]
+        
+        # Map common column synonyms to standard pipeline names
+        synonyms = {
+            "store id": "warehouse",
+            "store": "warehouse",
+            "warehouse id": "warehouse",
+            "units sold": "demand",
+            "sales": "demand",
+            "quantity": "demand"
+        }
+        for syn, standard in synonyms.items():
+            if syn in df.columns and standard not in df.columns:
+                df = df.rename(columns={syn: standard})
+                
         ProcessingLogService.log_info(db, job.id, f"Loaded {len(df)} records", "ingestion")
         return df
     
@@ -386,6 +396,7 @@ class ProcessingJobService:
     @staticmethod
     def _step_feature_engineering(db: Session, job: ProcessingJob, df: pd.DataFrame) -> pd.DataFrame:
         """Step 6: Feature Engineering."""
+        feature_names = []
         if 'date' in df.columns:
             df['date'] = pd.to_datetime(df['date'])
             df['day_of_week'] = df['date'].dt.dayofweek
@@ -451,14 +462,12 @@ class ProcessingJobService:
         job.paused_at = datetime.utcnow()
         db.commit()
         
-        asyncio.create_task(
-            manager.send_progress_update(
-                channel="processing",
-                job_id=job.job_id,
-                progress=job.progress_percentage,
-                step="Paused",
-                status="paused"
-            )
+        manager.send_progress_update_sync(
+            channel="processing",
+            job_id=job.job_id,
+            progress=job.progress_percentage,
+            step="Paused",
+            status="paused"
         )
         
         if job.created_by:
@@ -482,14 +491,12 @@ class ProcessingJobService:
         job.status = ProcessingJobStatus.RUNNING
         db.commit()
         
-        asyncio.create_task(
-            manager.send_progress_update(
-                channel="processing",
-                job_id=job.job_id,
-                progress=job.progress_percentage,
-                step="Resumed",
-                status="running"
-            )
+        manager.send_progress_update_sync(
+            channel="processing",
+            job_id=job.job_id,
+            progress=job.progress_percentage,
+            step="Resumed",
+            status="running"
         )
         
         if job.created_by:

@@ -6,7 +6,7 @@ from typing import Dict, Any, List, Optional
 from sqlalchemy.orm import Session
 import numpy as np
 
-from fastapi_app.models.forecast_job_model import ForecastJob, ForecastResult
+from fastapi_app.models.forecast_job_model import ForecastJob, ForecastResult, ForecastJobStatus
 from fastapi_app.services.forecast.forecast_result_service import ForecastResultService
 
 
@@ -19,6 +19,10 @@ class ForecastChartService:
         job = db.query(ForecastJob).filter(ForecastJob.job_id == job_id).first()
         if not job:
             return {"error": "Job not found"}
+        
+        if job.status != ForecastJobStatus.COMPLETED:
+            status_str = job.status.value if hasattr(job.status, "value") else str(job.status)
+            return {"error": f"Job has not completed successfully. Current status: {status_str}"}
         
         results = db.query(ForecastResult).filter(
             ForecastResult.forecast_job_id == job.id
@@ -79,6 +83,10 @@ class ForecastChartService:
         job = db.query(ForecastJob).filter(ForecastJob.job_id == job_id).first()
         if not job:
             return {"error": "Job not found"}
+        
+        if job.status != ForecastJobStatus.COMPLETED:
+            status_str = job.status.value if hasattr(job.status, "value") else str(job.status)
+            return {"error": f"Job has not completed successfully. Current status: {status_str}"}
         
         peaks = ForecastResultService.get_peak_days(db, job_id, top_n)
         

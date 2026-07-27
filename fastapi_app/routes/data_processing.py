@@ -107,20 +107,34 @@ def process_from_csv(
 ):
     csv_path = req.path if req.path else DEFAULT_DATASET_PATH
     
+    if not os.path.exists(csv_path):
+        raise HTTPException(status_code=404, detail=f"File not found: {csv_path}")
+
+    # Inspect CSV headers to find actual case-sensitive column name for date_column
+    actual_date_col = None
     try:
-        if req.parse_dates and req.date_column:
-            df = pd.read_csv(csv_path, parse_dates=[req.date_column])
+        header_df = pd.read_csv(csv_path, nrows=0)
+        col_map = {c.lower(): c for c in header_df.columns}
+        if req.date_column:
+            actual_date_col = col_map.get(req.date_column.lower())
+    except Exception:
+        pass
+
+    try:
+        if req.parse_dates and actual_date_col:
+            df = pd.read_csv(csv_path, parse_dates=[actual_date_col])
         else:
             df = pd.read_csv(csv_path)
     except FileNotFoundError:
-        raise HTTPException(status_code=404, detail="file not found")
+        raise HTTPException(status_code=404, detail=f"File not found: {csv_path}")
     except Exception as exc:
         raise HTTPException(status_code=400, detail=str(exc))
 
-    # Handle date column
-    if req.date_column and req.date_column in df.columns:
-        df[req.date_column] = pd.to_datetime(df[req.date_column], errors="coerce")
-        df = df.set_index(req.date_column)
+    # Handle date column index
+    date_col_to_use = actual_date_col or req.date_column
+    if date_col_to_use and date_col_to_use in df.columns:
+        df[date_col_to_use] = pd.to_datetime(df[date_col_to_use], errors="coerce")
+        df = df.set_index(date_col_to_use)
     else:
         for col in df.columns:
             try:
@@ -134,7 +148,7 @@ def process_from_csv(
             except Exception:
                 continue
 
-    # Select value column - improved detection
+    # Select value column - improved case-insensitive detection
     series = _select_value_column(df, req.value_column)
 
     # Handle missing values - modernized
@@ -191,18 +205,23 @@ def process_from_csv(
 
 
 def _select_value_column(df: pd.DataFrame, value_col: str | None = None) -> pd.Series:
-    """Improved value column detection."""
-    if value_col and value_col in df.columns:
-        return df[value_col]
+    """Improved value column detection with case-insensitivity."""
+    if value_col:
+        if value_col in df.columns:
+            return df[value_col]
+        for col in df.columns:
+            if col.lower() == value_col.lower():
+                return df[col]
     
-    # Preferred column names
-    preferred = ["demand", "sales", "quantity", "units", "stock", "value", "amount"]
-    for col in preferred:
-        if col in df.columns:
-            return df[col]
+    # Preferred column names (case-insensitive)
+    preferred = ["demand", "sales", "quantity", "units", "units sold", "stock", "value", "amount", "price", "revenue"]
+    for pref in preferred:
+        for col in df.columns:
+            if col.lower() == pref:
+                return df[col]
     
     # Fallback to numeric columns
-    numeric_cols = df.select_dtypes(include=[float, int]).columns.tolist()
+    numeric_cols = df.select_dtypes(include=[np.number, float, int]).columns.tolist()
     if numeric_cols:
         return df[numeric_cols[0]]
     

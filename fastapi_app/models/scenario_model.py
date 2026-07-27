@@ -1,8 +1,11 @@
 # fastapi_app/models/scenario_model.py
+"""
+Scenario Models - Foundation for scenario simulation.
+"""
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import Column, Integer, String, DateTime, JSON, Float, ForeignKey, Text, Enum, Index, Boolean
+from sqlalchemy import Column, Integer, String, DateTime, JSON, Float, ForeignKey, Text, Enum, Index
 from sqlalchemy.orm import relationship
 import enum
 
@@ -19,58 +22,45 @@ class ScenarioStatus(str, enum.Enum):
 
 
 class Scenario(Base):
+    """Scenario model - Contains filters and simulation inputs."""
     __tablename__ = "scenarios"
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(255), nullable=False)
     description = Column(String(1024), nullable=True)
     
-    # Filtering and categorization
-    time_horizon = Column(Integer, default=30)
+    # Filters
     region = Column(String(100), nullable=True)
     warehouse = Column(String(100), nullable=True)
     category = Column(String(100), nullable=True)
     sku = Column(String(100), nullable=True)
+    time_horizon = Column(Integer, default=30)
     
-    # Scenario adjustment parameters
+    # Simulation Inputs
     demand_surge = Column(Float, default=0.0)
     discount = Column(Float, default=0.0)
     price_change = Column(Float, default=0.0)
     supply_delay = Column(Integer, default=0)
     seasonal_impact = Column(Float, default=0.0)
     
-    # Status and tracking
+    # Forecast Model
+    forecast_model = Column(String(50), default="arima")
+    
+    # Status
     status = Column(Enum(ScenarioStatus), default=ScenarioStatus.CREATED, nullable=False)
     progress = Column(Float, default=0.0)
     
-    # Forecast model
-    forecast_model = Column(String(50), default="arima")
-    
-    # Legacy fields
-    parameters = Column(JSON, nullable=True)
-    last_run_at = Column(DateTime, nullable=True)
-    last_run_status = Column(String(50), nullable=True)
-    last_run_output = Column(JSON, nullable=True)
-    
-    # ✅ Audit Trail
+    # Audit
     created_by = Column(Integer, ForeignKey("users.id"), nullable=True)
-    updated_by = Column(Integer, ForeignKey("users.id"), nullable=True)
-    executed_by = Column(Integer, ForeignKey("users.id"), nullable=True)
-    deleted_by = Column(Integer, ForeignKey("users.id"), nullable=True)
-    exported_by = Column(Integer, ForeignKey("users.id"), nullable=True)
-    
-    # Timestamps
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
-    deleted_at = Column(DateTime, nullable=True)
-    exported_at = Column(DateTime, nullable=True)
-
+    
+    # Execution
+    last_run_at = Column(DateTime, nullable=True)
+    last_run_status = Column(String(50), nullable=True)
+    
     # Relationships
     creator = relationship("User", foreign_keys=[created_by])
-    updater = relationship("User", foreign_keys=[updated_by])
-    executor = relationship("User", foreign_keys=[executed_by])
-    deleter = relationship("User", foreign_keys=[deleted_by])
-    exporter = relationship("User", foreign_keys=[exported_by])
     scenario_runs = relationship("ScenarioRun", back_populates="scenario", cascade="all, delete-orphan")
     scenario_results = relationship("ScenarioResult", back_populates="scenario", cascade="all, delete-orphan")
 
@@ -91,28 +81,31 @@ class Scenario(Base):
 
 
 class ScenarioRun(Base):
-    """Tracks individual simulation runs."""
+    """Scenario run - Tracks individual simulation executions."""
     __tablename__ = "scenario_runs"
     
     id = Column(Integer, primary_key=True, index=True)
     scenario_id = Column(Integer, ForeignKey("scenarios.id", ondelete="CASCADE"), nullable=False)
     run_id = Column(String(36), unique=True, index=True, nullable=False)
     
+    # Status and Progress
     status = Column(String(50), default="queued")
     progress = Column(Float, default=0.0)
     current_step = Column(String(100), nullable=True)
     step_number = Column(Integer, default=0)
-    total_steps = Column(Integer, default=8)
+    total_steps = Column(Integer, default=5)
     logs = Column(JSON, nullable=True)
     
+    # Timing
     started_at = Column(DateTime, nullable=True)
     completed_at = Column(DateTime, nullable=True)
-    estimated_completion = Column(DateTime, nullable=True)
     duration_seconds = Column(Float, nullable=True)
     
+    # User
     user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
     error_message = Column(Text, nullable=True)
     
+    # Timestamp
     created_at = Column(DateTime, default=datetime.utcnow)
     
     # Relationships
@@ -131,51 +124,45 @@ class ScenarioRun(Base):
 
 
 class ScenarioResult(Base):
-    """Stores simulation results for a scenario run."""
+    """Scenario result - Stores simulation results shown in UI."""
     __tablename__ = "scenario_results"
     
     id = Column(Integer, primary_key=True, index=True)
     scenario_id = Column(Integer, ForeignKey("scenarios.id", ondelete="CASCADE"), nullable=False)
     run_id = Column(Integer, ForeignKey("scenario_runs.id", ondelete="CASCADE"), nullable=False)
     
-    # Core metrics
+    # Core Metrics
     demand_impact = Column(Float, nullable=True)
     inventory_impact = Column(Float, nullable=True)
     revenue_impact = Column(Float, nullable=True)
     stockout_risk = Column(Float, nullable=True)
     
-    # Detailed data
-    stockout_skus = Column(JSON, nullable=True)
-    forecast_json = Column(JSON, nullable=True)
-    inventory_json = Column(JSON, nullable=True)
-    summary_json = Column(JSON, nullable=True)
-    
-    # Chart data
+    # Forecast Graph Data
     forecast_labels = Column(JSON, nullable=True)
     forecast_baseline = Column(JSON, nullable=True)
     forecast_simulation = Column(JSON, nullable=True)
-    forecast_difference = Column(JSON, nullable=True)
     
+    # Inventory Graph Data
     inventory_labels = Column(JSON, nullable=True)
     inventory_baseline = Column(JSON, nullable=True)
     inventory_simulation = Column(JSON, nullable=True)
-    inventory_difference = Column(JSON, nullable=True)
     
-    # All SKU data
-    all_skus = Column(JSON, nullable=True)
-    
-    # Recommendation IDs
-    recommendation_ids = Column(JSON, nullable=True)
-    
-    # Summary cards
+    # Summary Cards
     summary_cards = Column(JSON, nullable=True)
+    
+    # Stockout Table
+    stockout_skus = Column(JSON, nullable=True)
+    stockout_count = Column(Integer, default=0)
+    
+    # Recommendations
+    recommendation_ids = Column(JSON, nullable=True)
     
     # Additional metrics
     total_demand = Column(Float, nullable=True)
     total_inventory = Column(Float, nullable=True)
     total_revenue = Column(Float, nullable=True)
-    stockout_count = Column(Integer, default=0)
     
+    # Timestamp
     created_at = Column(DateTime, default=datetime.utcnow)
     
     # Relationships
@@ -193,7 +180,7 @@ class ScenarioResult(Base):
 
 
 class ScenarioComparison(Base):
-    """Stores comparison results between scenarios."""
+    """Scenario comparison - Stores comparison results."""
     __tablename__ = "scenario_comparisons"
     
     id = Column(Integer, primary_key=True, index=True)

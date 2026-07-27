@@ -1,6 +1,8 @@
 from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey
 from sqlalchemy.orm import relationship
+from sqlalchemy.ext.hybrid import hybrid_property
 from fastapi_app.db.session import Base
+from fastapi_app.models.role_model import Role
 from datetime import datetime
 
 
@@ -24,6 +26,14 @@ class User(Base):
 
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
+    @hybrid_property
+    def is_admin(self) -> bool:
+        return bool(self.role and self.role.name in ("admin", "super_admin"))
+
+    @is_admin.expression
+    def is_admin(cls):
+        return cls.role.has(Role.name.in_(["admin", "super_admin"]))
+
     def __repr__(self):
         role_name = self.role.name if self.role else None
-        return f"<User(id={self.id}, email={self.email}, role={self.role})>"
+        return f"<User(id={self.id}, email={self.email}, role={role_name})>"

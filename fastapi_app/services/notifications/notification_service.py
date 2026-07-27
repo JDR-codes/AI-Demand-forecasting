@@ -55,32 +55,16 @@ class NotificationService:
             logger.error(f"Failed to create notification: {str(e)}")
             raise
         
-        # Send WebSocket notification using safe event loop
+        # Send WebSocket notification using thread-safe manager
         if send_websocket:
             try:
-                # Get the running event loop or create a new one
-                try:
-                    loop = asyncio.get_running_loop()
-                    loop.create_task(
-                        manager.send_notification(
-                            user_id=user_id,
-                            title=title,
-                            message=message,
-                            notification_type=notification_type.value,
-                            priority=priority.value
-                        )
-                    )
-                except RuntimeError:
-                    # No running loop, create a new event loop
-                    asyncio.run(
-                        manager.send_notification(
-                            user_id=user_id,
-                            title=title,
-                            message=message,
-                            notification_type=notification_type.value,
-                            priority=priority.value
-                        )
-                    )
+                manager.send_notification_sync(
+                    user_id=user_id,
+                    title=title,
+                    message=message,
+                    notification_type=notification_type.value,
+                    priority=priority.value
+                )
             except Exception as e:
                 logger.error(f"Failed to send WebSocket notification: {e}")
         
@@ -185,31 +169,18 @@ class NotificationService:
             logger.error(f"Failed to mark notification as read: {str(e)}")
             raise
         
-        # Send WebSocket update using safe event loop
+        # Send WebSocket update using thread-safe manager
         try:
-            try:
-                loop = asyncio.get_running_loop()
-                loop.create_task(
-                    manager.send_to_user(
-                        user_id=user_id,
-                        message={
-                            "type": "notification_read",
-                            "notification_id": notification_id,
-                            "timestamp": datetime.utcnow().isoformat()
-                        }
-                    )
+            manager.run_async(
+                manager.send_to_user(
+                    user_id=user_id,
+                    message={
+                        "type": "notification_read",
+                        "notification_id": notification_id,
+                        "timestamp": datetime.utcnow().isoformat()
+                    }
                 )
-            except RuntimeError:
-                asyncio.run(
-                    manager.send_to_user(
-                        user_id=user_id,
-                        message={
-                            "type": "notification_read",
-                            "notification_id": notification_id,
-                            "timestamp": datetime.utcnow().isoformat()
-                        }
-                    )
-                )
+            )
         except Exception as e:
             logger.error(f"Failed to send WebSocket notification read: {e}")
         
@@ -233,31 +204,18 @@ class NotificationService:
             logger.error(f"Failed to mark all notifications as read: {str(e)}")
             raise
         
-        # Send WebSocket update using safe event loop
+        # Send WebSocket update using thread-safe manager
         try:
-            try:
-                loop = asyncio.get_running_loop()
-                loop.create_task(
-                    manager.send_to_user(
-                        user_id=user_id,
-                        message={
-                            "type": "notifications_read_all",
-                            "count": count,
-                            "timestamp": datetime.utcnow().isoformat()
-                        }
-                    )
+            manager.run_async(
+                manager.send_to_user(
+                    user_id=user_id,
+                    message={
+                        "type": "notifications_read_all",
+                        "count": count,
+                        "timestamp": datetime.utcnow().isoformat()
+                    }
                 )
-            except RuntimeError:
-                asyncio.run(
-                    manager.send_to_user(
-                        user_id=user_id,
-                        message={
-                            "type": "notifications_read_all",
-                            "count": count,
-                            "timestamp": datetime.utcnow().isoformat()
-                        }
-                    )
-                )
+            )
         except Exception as e:
             logger.error(f"Failed to send WebSocket read all: {e}")
         
@@ -493,6 +451,24 @@ class NotificationService:
             priority=priority,
             entity_type="alert"
         )
+    @staticmethod
+    def create_recommendation_notification(
+        db: Session,
+        user_id: int,
+        success: bool,
+        count: int,
+        message: str
+    ) -> Notification:
+        """Create a notification for recommendation generation/execution/ignore actions."""
+        return NotificationService.create_notification(
+            db=db,
+            user_id=user_id,
+            title="Recommendation Update" if success else "Recommendation Action",
+            message=message,
+            notification_type=NotificationType.SYSTEM,
+            priority=NotificationPriority.HIGH if success else NotificationPriority.MEDIUM,
+            entity_type="recommendation"
+        )
     
     @staticmethod
     def create_system_notification(
@@ -509,50 +485,5 @@ class NotificationService:
             title=title,
             message=message,
             notification_type=NotificationType.SYSTEM,
-            priority=priority
-        )
-        
-    @staticmethod
-    def create_recommendation_notification(
-        db: Session,
-        user_id: int,
-        success: bool = True,
-        count: int = 0,
-        message: str = None,
-        sku: str = None
-    ) -> Optional[Notification]:
-        """Create a recommendation notification."""
-        if not user_id:
-            return None
-        
-        if success:
-            if count > 1:
-                title = f"✅ {count} Recommendations Generated"
-                default_msg = f"Generated {count} recommendations"
-            else:
-                title = f"✅ Recommendation Executed" if "executed" in str(message).lower() else f"✅ Recommendation Generated"
-                default_msg = message or "Recommendation processed successfully"
-            priority = NotificationPriority.MEDIUM
-        else:
-            title = f"❌ Recommendation Action Failed"
-            default_msg = message or "Recommendation action failed"
-            priority = NotificationPriority.HIGH
-        
-        # For critical recommendations
-        if "critical" in str(message).lower() or "CRITICAL" in str(title).upper():
-            title = f"🚨 CRITICAL RECOMMENDATION"
-            if sku:
-                title += f" - SKU {sku}"
-            priority = NotificationPriority.HIGH
-            notification_type = NotificationType.ALERT
-        else:
-            notification_type = NotificationType.SYSTEM
-        
-        return NotificationService.create_notification(
-            db=db,
-            user_id=user_id,
-            title=title,
-            message=default_msg,
-            notification_type=notification_type,
             priority=priority
         )

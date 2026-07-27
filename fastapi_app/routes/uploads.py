@@ -1,7 +1,9 @@
 # fastapi_app/routes/uploads.py
-from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, Query
+from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, Query, Request
 from typing import List, Optional
 from sqlalchemy.orm import Session
+from pydantic import BaseModel
+from pathlib import Path
 import os
 import pandas as pd
 
@@ -25,6 +27,9 @@ router = APIRouter(
     prefix="/api/uploads",
     tags=["Uploads"],
 )
+
+class FilePathsPayload(BaseModel):
+    file_paths: List[str]
 
 # ============================================================================
 # UPLOAD OPERATIONS
@@ -57,37 +62,134 @@ async def upload_file(
     job = UploadJobService.create_job(db, upload.id)
     TaskManager.run_upload_job(job.job_id)
 
-    return upload
+    return UploadOut.model_validate(upload)
 
 
 @router.post("/multiple", response_model=List[UploadOut])
 async def upload_multiple_files(
-    files: List[UploadFile] = File(...),
+    request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Upload multiple files."""
-    results = []
-    for file in files:
-        if not file.filename.lower().endswith((".csv", ".xlsx", ".xls", ".json")):
-            continue
+    """Upload multiple files via multipart file binary uploads or file path strings."""
+    content_type = request.headers.get("content-type", "")
+    items_to_process = []
+    
+    if "application/json" in content_type:
+        try:
+            body_json = await request.json()
+            if isinstance(body_json, dict) and "files" in body_json:
+                raw_items = body_json["files"]
+            elif isinstance(body_json, list):
+                raw_items = body_json
+            else:
+                raw_items = [body_json]
+            for item in raw_items:
+                if isinstance(item, str):
+                    items_to_process.append(item)
+        except Exception:
+            pass
+    else:
+        try:
+            form = await request.form()
+            items_to_process = form.getlist("files")
+        except Exception:
+            pass
+            
+    if not items_to_process:
+        raise HTTPException(
+            status_code=400,
+            detail="No files or file paths provided in request"
+        )
         
-        file_bytes = await file.read()
+    results = []
+    processed_paths = set()
+    
+    for item in items_to_process:
+        if isinstance(item, UploadFile):
+            filename = item.filename
+            if not filename.lower().endswith((".csv", ".xlsx", ".xls", ".json")):
+                continue
+            file_bytes = await item.read()
+            upload = create_upload(
+                db=db,
+                filename=filename,
+                file_bytes=file_bytes,
+                uploaded_by=current_user.id,
+                folder=None,
+            )
+            job = UploadJobService.create_job(db, upload.id)
+            TaskManager.run_upload_job(job.job_id)
+            results.append(upload)
+        elif isinstance(item, str):
+            cleaned_str = item.strip(' "[]\'')
+            if not cleaned_str:
+                continue
+            parts = [p.strip(' "\'') for p in cleaned_str.replace('"', '').split(",") if p.strip(' "\'')]
+            for path_str in parts:
+                if path_str in processed_paths:
+                    continue
+                processed_paths.add(path_str)
+                
+                file_path = Path(path_str)
+                if not file_path.exists() or not file_path.is_file():
+                    raise HTTPException(status_code=400, detail=f"File not found on disk: {path_str}")
+                
+                filename = file_path.name
+                if not filename.lower().endswith((".csv", ".xlsx", ".xls", ".json")):
+                    continue
+                
+                with open(file_path, "rb") as f:
+                    file_bytes = f.read()
+                
+                upload = create_upload(
+                    db=db,
+                    filename=filename,
+                    file_bytes=file_bytes,
+                    uploaded_by=current_user.id,
+                    folder=None,
+                )
+                job = UploadJobService.create_job(db, upload.id)
+                TaskManager.run_upload_job(job.job_id)
+                results.append(upload)
+
+    return [UploadOut.model_validate(u) for u in results]
+
+
+@router.post("/from-paths", response_model=List[UploadOut])
+def upload_from_file_paths(
+    payload: FilePathsPayload,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Upload multiple files directly from local file paths on disk."""
+    results = []
+    for path_str in payload.file_paths:
+        file_path = Path(path_str)
+        if not file_path.exists() or not file_path.is_file():
+            raise HTTPException(status_code=400, detail=f"File not found on disk: {path_str}")
+        
+        filename = file_path.name
+        if not filename.lower().endswith((".csv", ".xlsx", ".xls", ".json")):
+            raise HTTPException(status_code=400, detail=f"Unsupported file type: {filename}")
+        
+        with open(file_path, "rb") as f:
+            file_bytes = f.read()
+        
         upload = create_upload(
             db=db,
-            filename=file.filename,
+            filename=filename,
             file_bytes=file_bytes,
             uploaded_by=current_user.id,
             folder=None,
         )
         
-        # Create upload job
         job = UploadJobService.create_job(db, upload.id)
         TaskManager.run_upload_job(job.job_id)
         
         results.append(upload)
     
-    return results
+    return [UploadOut.model_validate(u) for u in results]
 
 
 @router.get("/", response_model=List[UploadOut])
@@ -99,7 +201,8 @@ def list_uploads(
     current_user: User = Depends(get_current_user),
 ):
     """List uploads with optional filtering."""
-    return get_uploads(db, status, limit, offset)
+    uploads = get_uploads(db, status, limit, offset)
+    return [UploadOut.model_validate(u) for u in uploads]
 
 
 @router.get("/stats")
@@ -111,113 +214,8 @@ def get_upload_stats_endpoint(
     return get_upload_stats(db)
 
 
-@router.get("/{upload_id}", response_model=UploadOut)
-def get_upload_endpoint(
-    upload_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    upload = get_upload(db, upload_id)
-    if upload is None:
-        raise HTTPException(
-            status_code=404,
-            detail="Upload not found",
-        )
-    return upload
-
-
-@router.delete("/{upload_id}")
-def delete_upload_endpoint(
-    upload_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    if not delete_upload(db, upload_id):
-        raise HTTPException(
-            status_code=404,
-            detail="Upload not found",
-        )
-    return {"deleted": True}
-
-
 # ============================================================================
-# PREVIEW & DOWNLOAD
-# ============================================================================
-
-@router.get("/{upload_id}/preview", response_model=UploadPreviewOut)
-def preview_upload(
-    upload_id: int,
-    rows: int = Query(20, ge=1, le=100),
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    """Preview upload data."""
-    preview_data = get_upload_preview(db, upload_id, rows)
-    if "error" in preview_data:
-        raise HTTPException(
-            status_code=404 if preview_data["error"] == "Upload not found" else 400,
-            detail=preview_data["error"]
-        )
-    
-    return UploadPreviewOut(
-        columns=preview_data["columns"],
-        rows=preview_data["rows"],
-        row_count=preview_data["row_count"],
-        upload_id=preview_data["upload_id"],
-        filename=preview_data["filename"]
-    )
-
-
-@router.get("/{upload_id}/download")
-def download_upload(
-    upload_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    """Download uploaded file."""
-    from fastapi.responses import FileResponse
-    
-    upload = get_upload(db, upload_id)
-    if upload is None:
-        raise HTTPException(
-            status_code=404,
-            detail="Upload not found",
-        )
-    
-    if not os.path.exists(upload.file_path):
-        raise HTTPException(
-            status_code=404,
-            detail="File not found on server",
-        )
-    
-    return FileResponse(
-        upload.file_path,
-        filename=upload.filename,
-        media_type="application/octet-stream"
-    )
-
-
-# ============================================================================
-# PROCESSING
-# ============================================================================
-
-@router.post("/{upload_id}/process", response_model=UploadOut)
-def process_upload_endpoint(
-    upload_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    upload = process_upload(db, upload_id)
-    if upload is None:
-        raise HTTPException(
-            status_code=404,
-            detail="Upload not found",
-        )
-    return upload
-
-
-# ============================================================================
-# UPLOAD JOBS
+# UPLOAD JOBS (Must be declared before /{upload_id} parameterized routes)
 # ============================================================================
 
 @router.get("/jobs")
@@ -330,3 +328,112 @@ def retry_upload_job(
         "message": "Upload job retry started",
         "job_id": job.job_id
     }
+
+
+# ============================================================================
+# PARAMETERIZED UPLOAD ROUTES
+# ============================================================================
+
+@router.get("/{upload_id}", response_model=UploadOut)
+def get_upload_endpoint(
+    upload_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    upload = get_upload(db, upload_id)
+    if upload is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Upload not found",
+        )
+    return UploadOut.model_validate(upload)
+
+
+@router.delete("/{upload_id}")
+def delete_upload_endpoint(
+    upload_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    if not delete_upload(db, upload_id):
+        raise HTTPException(
+            status_code=404,
+            detail="Upload not found",
+        )
+    return {"deleted": True}
+
+
+# ============================================================================
+# PREVIEW & DOWNLOAD
+# ============================================================================
+
+@router.get("/{upload_id}/preview", response_model=UploadPreviewOut)
+def preview_upload(
+    upload_id: int,
+    rows: int = Query(20, ge=1, le=100),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Preview upload data."""
+    preview_data = get_upload_preview(db, upload_id, rows)
+    if "error" in preview_data:
+        raise HTTPException(
+            status_code=404 if preview_data["error"] == "Upload not found" else 400,
+            detail=preview_data["error"]
+        )
+    
+    return UploadPreviewOut(
+        columns=preview_data["columns"],
+        rows=preview_data["rows"],
+        row_count=preview_data["row_count"],
+        upload_id=preview_data["upload_id"],
+        filename=preview_data["filename"]
+    )
+
+
+@router.get("/{upload_id}/download")
+def download_upload(
+    upload_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Download uploaded file."""
+    from fastapi.responses import FileResponse
+    
+    upload = get_upload(db, upload_id)
+    if upload is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Upload not found",
+        )
+    
+    if not os.path.exists(upload.file_path):
+        raise HTTPException(
+            status_code=404,
+            detail="File not found on server",
+        )
+    
+    return FileResponse(
+        upload.file_path,
+        filename=upload.filename,
+        media_type="application/octet-stream"
+    )
+
+
+# ============================================================================
+# PROCESSING
+# ============================================================================
+
+@router.post("/{upload_id}/process", response_model=UploadOut)
+def process_upload_endpoint(
+    upload_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    upload = process_upload(db, upload_id)
+    if upload is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Upload not found",
+        )
+    return UploadOut.model_validate(upload)

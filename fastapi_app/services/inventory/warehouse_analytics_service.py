@@ -34,7 +34,6 @@ class WarehouseAnalyticsService:
     @staticmethod
     def get_value_distribution(db: Session) -> List[Dict[str, Any]]:
         """Get inventory value distribution by warehouse."""
-        # Join with InventorySKU to get unit cost
         results = db.query(
             WarehouseInventory.warehouse,
             func.sum(WarehouseInventory.current_stock * InventorySKU.unit_cost).label('total_value')
@@ -68,8 +67,6 @@ class WarehouseAnalyticsService:
             total_units = sum(i.current_stock for i in inventory)
             total_value = 0
             item_types = set()
-            low_stock = 0
-            excess_stock = 0
             
             for i in inventory:
                 sku = db.query(InventorySKU).filter_by(sku=i.sku).first()
@@ -77,15 +74,7 @@ class WarehouseAnalyticsService:
                     total_value += i.current_stock * sku.unit_cost
                     if sku.category:
                         item_types.add(sku.category)
-                
-                # Determine stock status
-                avg_stock = sum(ii.current_stock for ii in inventory) / len(inventory)
-                if i.current_stock < avg_stock * 0.5:
-                    low_stock += 1
-                elif i.current_stock > avg_stock * 1.5:
-                    excess_stock += 1
             
-            # Get region
             region = inventory[0].region if inventory else "Unknown"
             
             summary.append({
@@ -94,9 +83,6 @@ class WarehouseAnalyticsService:
                 "total_units": round(total_units, 2),
                 "inventory_value": round(total_value, 2),
                 "item_types": len(item_types),
-                "low_stock": low_stock,
-                "excess_stock": excess_stock,
-                "utilization": round((low_stock / len(inventory) * 100), 2) if inventory else 0,
             })
         
         return summary

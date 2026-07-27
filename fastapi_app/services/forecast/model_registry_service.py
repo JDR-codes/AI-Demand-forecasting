@@ -152,30 +152,25 @@ class ModelRegistryService:
     @staticmethod
     def record_training_history(
         db: Session,
-        model_registry_id: str,
-        training_job_id: str,
-        version: str,
-        accuracy_before: float = None,
-        accuracy_after: float = None,
-        duration_seconds: float = None,
-        notes: str = None,
-        metrics: dict = None,
-        trained_by: int = None
+        **kwargs
     ) -> TrainingHistory:
         """Record training history for a model."""
-        history = TrainingHistory(
-            model_registry_id=model_registry_id,
-            training_job_id=training_job_id,
-            version=version,
-            accuracy_before=accuracy_before,
-            accuracy_after=accuracy_after,
-            duration_seconds=duration_seconds,
-            notes=notes,
-            metrics=metrics or {},
-            trained_by=trained_by,
-            status="completed"
-        )
+        if "status" not in kwargs:
+            kwargs["status"] = "completed"
+        history = TrainingHistory(**kwargs)
         db.add(history)
         db.commit()
         db.refresh(history)
         return history
+
+    @staticmethod
+    def get_training_history(
+        db: Session,
+        model_registry_id: str = None,
+        limit: int = 50
+    ) -> List[TrainingHistory]:
+        """Get training history for a model or all models."""
+        query = db.query(TrainingHistory)
+        if model_registry_id:
+            query = query.filter(TrainingHistory.model_registry_id == model_registry_id)
+        return query.order_by(desc(TrainingHistory.trained_at)).limit(limit).all()

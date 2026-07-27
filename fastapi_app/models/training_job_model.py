@@ -80,6 +80,12 @@ class TrainingJob(Base):
         Index('idx_training_jobs_model_registry_id', 'model_registry_id'),
     )
     
+    @property
+    def created_by(self):
+        if self.configuration and isinstance(self.configuration, dict):
+            return self.configuration.get("created_by")
+        return None
+
     def __repr__(self):
         return f"<TrainingJob(job_id={self.job_id}, model_type={self.model_type}, status={self.status})>"
 

@@ -2,12 +2,12 @@
 from fastapi import APIRouter, Depends, Query, HTTPException
 from typing import Optional
 from sqlalchemy.orm import Session
-from sqlalchemy import desc, or_
+from sqlalchemy import desc, or_, func
 
 from fastapi_app.core.dependencies import get_current_user
 from fastapi_app.db.session import get_db
 from fastapi_app.models.auth_model import User
-from fastapi_app.models.processing_job_model import ProcessingJob
+from fastapi_app.models.processing_job_model import ProcessingJob, ProcessingJobStatus
 
 router = APIRouter(prefix="/api/processing/history", tags=["Processing History"])
 
@@ -26,14 +26,35 @@ def get_processing_history(
     query = db.query(ProcessingJob)
     
     if search:
+        search_lower = search.lower()
         query = query.filter(
             or_(
-                ProcessingJob.dataset_path.contains(search),
-                ProcessingJob.job_id.contains(search)
+                func.lower(ProcessingJob.dataset_path).contains(search_lower),
+                func.lower(ProcessingJob.job_id).contains(search_lower)
             )
         )
     if status:
-        query = query.filter(ProcessingJob.status == status)
+        status_lower = status.lower()
+        if status_lower == "active":
+            query = query.filter(
+                ProcessingJob.status.in_([
+                    ProcessingJobStatus.RUNNING,
+                    ProcessingJobStatus.QUEUED,
+                    ProcessingJobStatus.PAUSED
+                ])
+            )
+        elif status_lower in ["completed", "complete"]:
+            query = query.filter(ProcessingJob.status == ProcessingJobStatus.COMPLETED)
+        elif status_lower in ["failed", "fail"]:
+            query = query.filter(ProcessingJob.status == ProcessingJobStatus.FAILED)
+        elif status_lower in ["cancelled", "cancelled", "canceled", "cancel"]:
+            query = query.filter(ProcessingJob.status == ProcessingJobStatus.CANCELLED)
+        else:
+            try:
+                enum_val = ProcessingJobStatus(status_lower)
+                query = query.filter(ProcessingJob.status == enum_val)
+            except ValueError:
+                pass
     
     # Sort
     sort_field = sort.lstrip('-')

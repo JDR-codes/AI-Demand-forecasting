@@ -52,7 +52,8 @@ class TrainingService:
         configuration.update({
             "batch_size": config.batch_size or 16,
             "learning_rate": config.learning_rate or 0.001,
-            "epochs": config.epochs or 20
+            "epochs": config.epochs or 20,
+            "created_by": created_by
         })
         
         job = TrainingJob(

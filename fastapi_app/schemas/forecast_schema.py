@@ -195,9 +195,9 @@ class TrainingHistoryResponse(BaseModel):
     epochs: Optional[int]
     dataset_size: Optional[int]
     status: str
-    trained_at: str
-    started_at: Optional[str]
-    finished_at: Optional[str]
+    trained_at: datetime
+    started_at: Optional[datetime]
+    finished_at: Optional[datetime]
     notes: Optional[str]
     metrics: Optional[Dict[str, Any]]
     

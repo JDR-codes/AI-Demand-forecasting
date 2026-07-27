@@ -123,6 +123,16 @@ def get_unread_count(
     return NotificationCountResponse(unread_count=count)
 
 
+@router.patch("/read-all")
+def mark_all_read(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Mark all notifications as read."""
+    count = NotificationService.mark_all_read(db, current_user.id)
+    return {"message": f"{count} notifications marked as read", "count": count}
+
+
 @router.patch("/{notification_id}", response_model=NotificationStatusUpdateResponse)
 def mark_as_read(
     notification_id: int,
@@ -138,16 +148,6 @@ def mark_as_read(
         status=notification.status,
         message="Notification marked as read"
     )
-
-
-@router.patch("/read-all")
-def mark_all_read(
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    """Mark all notifications as read."""
-    count = NotificationService.mark_all_read(db, current_user.id)
-    return {"message": f"{count} notifications marked as read", "count": count}
 
 
 @router.delete("/{notification_id}")

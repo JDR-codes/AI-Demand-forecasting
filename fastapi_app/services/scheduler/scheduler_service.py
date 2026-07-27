@@ -1,5 +1,5 @@
-# fastapi_app/services/scheduler/scheduler_service.py
 import asyncio
+
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 from apscheduler.triggers.cron import CronTrigger
@@ -24,7 +24,7 @@ class SchedulerService:
         """Start the scheduler"""
         if not self.scheduler.running:
             try:
-                # Try to get existing loop or create new one
+                # ✅ Try to get existing loop or create new one
                 try:
                     loop = asyncio.get_running_loop()
                 except RuntimeError:
@@ -34,13 +34,9 @@ class SchedulerService:
                 self.scheduler.start()
                 logger.info("Scheduler started")
                 
-                # Schedule jobs after start
+                # ✅ Schedule jobs after start
                 self.schedule_all_syncs()
                 self.schedule_all_trainings()
-                
-                # Schedule inventory tasks
-                self.schedule_inventory_tasks()
-                
             except Exception as e:
                 logger.error(f"Failed to start scheduler: {str(e)}")
             
@@ -49,133 +45,6 @@ class SchedulerService:
         if self.scheduler.running:
             self.scheduler.shutdown()
             logger.info("Scheduler stopped")
-    
-    # ==========================================================================
-    # INVENTORY TASKS
-    # ==========================================================================
-    
-    def schedule_inventory_tasks(self):
-        """Schedule all inventory-related tasks."""
-        # Nightly inventory tasks (runs at 2 AM every day)
-        self.scheduler.add_job(
-            self._run_nightly_inventory_tasks,
-            trigger=CronTrigger(hour=2, minute=0),
-            id="inventory_nightly",
-            replace_existing=True,
-            max_instances=1
-        )
-        logger.info("Scheduled nightly inventory tasks at 2 AM")
-        
-        # Hourly inventory checks (runs every hour)
-        self.scheduler.add_job(
-            self._run_hourly_inventory_tasks,
-            trigger=IntervalTrigger(hours=1),
-            id="inventory_hourly",
-            replace_existing=True,
-            max_instances=1
-        )
-        logger.info("Scheduled hourly inventory checks")
-        
-        # Dashboard cache refresh (every 15 minutes)
-        self.scheduler.add_job(
-            self._refresh_dashboard_cache,
-            trigger=IntervalTrigger(minutes=15),
-            id="dashboard_cache_refresh",
-            replace_existing=True,
-            max_instances=1
-        )
-        logger.info("Scheduled dashboard cache refresh every 15 minutes")
-    
-    async def _run_nightly_inventory_tasks(self):
-        """Run all nightly inventory tasks."""
-        logger.info("Starting nightly inventory tasks...")
-        db = SessionLocal()
-        
-        try:
-            from fastapi_app.models.inventory_model import WarehouseInventory
-            from fastapi_app.services.inventory.inventory_service import InventoryService
-            from fastapi_app.services.inventory.excess_stock_service import ExcessStockService
-            from fastapi_app.services.inventory.slow_moving_service import SlowMovingService
-            from fastapi_app.services.inventory.transfer_optimization_service import TransferOptimizationService
-            from fastapi_app.services.inventory.alert_service import AlertService
-            from fastapi_app.services.inventory.dashboard_cache_service import DashboardCacheService
-            
-            # 1. Update inventory values
-            logger.info("Updating inventory values...")
-            InventoryService.update_inventory_value(db)
-            
-            # 2. Run safety stock calculations
-            logger.info("Running safety stock calculations...")
-            all_skus = db.query(WarehouseInventory.sku).distinct().all()
-            sku_list = [s[0] for s in all_skus]
-            InventoryService.get_safety_stock_report(db, 95)
-            
-            # 3. Run reorder calculations
-            logger.info("Running reorder calculations...")
-            InventoryService.get_reorder_points_report(db)
-            
-            # 4. Identify excess stock
-            logger.info("Identifying excess stock...")
-            ExcessStockService.identify_excess_stock(db)
-            
-            # 5. Identify slow moving items
-            logger.info("Identifying slow moving items...")
-            SlowMovingService.get_slow_moving_items(db)
-            
-            # 6. Generate transfer recommendations
-            logger.info("Generating transfer recommendations...")
-            TransferOptimizationService.generate_transfer_recommendations(db)
-            
-            # 7. Run alert check
-            logger.info("Running alert check...")
-            AlertService.run_complete_alert_check(db)
-            
-            # 8. Invalidate and refresh dashboard cache
-            logger.info("Refreshing dashboard cache...")
-            DashboardCacheService.invalidate_cache()
-            
-            logger.info("Nightly inventory tasks completed successfully")
-            
-        except Exception as e:
-            logger.error(f"Nightly inventory tasks failed: {str(e)}")
-        finally:
-            db.close()
-    
-    async def _run_hourly_inventory_tasks(self):
-        """Run hourly inventory tasks."""
-        logger.info("Starting hourly inventory tasks...")
-        db = SessionLocal()
-        
-        try:
-            from fastapi_app.services.inventory.alert_service import AlertService
-            from fastapi_app.services.inventory.dashboard_cache_service import DashboardCacheService
-            
-            # Check for critical alerts
-            AlertService.run_complete_alert_check(db)
-            
-            # Refresh dashboard cache
-            DashboardCacheService.invalidate_cache()
-            
-            logger.info("Hourly inventory tasks completed")
-            
-        except Exception as e:
-            logger.error(f"Hourly inventory tasks failed: {str(e)}")
-        finally:
-            db.close()
-    
-    async def _refresh_dashboard_cache(self):
-        """Refresh dashboard cache."""
-        try:
-            from fastapi_app.services.inventory.dashboard_cache_service import DashboardCacheService
-            db = SessionLocal()
-            try:
-                # This will regenerate the cache
-                DashboardCacheService.get_dashboard_data(db)
-                logger.info("Dashboard cache refreshed")
-            finally:
-                db.close()
-        except Exception as e:
-            logger.error(f"Failed to refresh dashboard cache: {str(e)}")
     
     # ==========================================================================
     # VALIDATION
@@ -385,25 +254,8 @@ class SchedulerService:
         """Get all scheduled jobs"""
         jobs = []
         for job in self.scheduler.get_jobs():
-            # Determine job type
-            if job.id.startswith("sync_"):
-                job_type = "sync"
-                entity_id = job.id.split("_")[1] if "_" in job.id and len(job.id.split("_")) > 1 else None
-            elif job.id.startswith("training_"):
-                job_type = "training"
-                entity_id = job.id.split("_")[1] if "_" in job.id and len(job.id.split("_")) > 1 else None
-            elif job.id == "inventory_nightly":
-                job_type = "inventory_nightly"
-                entity_id = None
-            elif job.id == "inventory_hourly":
-                job_type = "inventory_hourly"
-                entity_id = None
-            elif job.id == "dashboard_cache_refresh":
-                job_type = "dashboard_cache"
-                entity_id = None
-            else:
-                job_type = "unknown"
-                entity_id = None
+            job_type = "sync" if job.id.startswith("sync_") else "training"
+            entity_id = job.id.split("_")[1] if "_" in job.id and len(job.id.split("_")) > 1 else None
             
             jobs.append({
                 "id": job.id,
@@ -439,19 +291,6 @@ class SchedulerService:
                 jobs.append({
                     "id": job.id,
                     "config_id": config_id,
-                    "next_run_time": job.next_run_time.isoformat() if job.next_run_time else None,
-                    "trigger": str(job.trigger),
-                    "status": "active" if job.next_run_time else "paused"
-                })
-        return jobs
-    
-    def get_inventory_jobs(self) -> List[Dict[str, Any]]:
-        """Get all scheduled inventory jobs"""
-        jobs = []
-        for job in self.scheduler.get_jobs():
-            if job.id in ["inventory_nightly", "inventory_hourly", "dashboard_cache_refresh"]:
-                jobs.append({
-                    "id": job.id,
                     "next_run_time": job.next_run_time.isoformat() if job.next_run_time else None,
                     "trigger": str(job.trigger),
                     "status": "active" if job.next_run_time else "paused"
@@ -503,7 +342,9 @@ class SchedulerService:
         """Execute a scheduled job immediately"""
         job = self.scheduler.get_job(job_id)
         if job:
+            # Get the job function and args
             from datetime import datetime, timedelta
+            # Trigger immediately by setting next run time to now
             job.modify(next_run_time=datetime.utcnow() + timedelta(seconds=1))
             logger.info(f"Triggered job {job_id} to run now")
             return True

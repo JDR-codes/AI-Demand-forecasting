@@ -156,11 +156,11 @@ def get_processing_logs(
         "total_logs": len(logs),
         "logs": [
             {
-                "timestamp": log.timestamp.isoformat(),
+                "timestamp": log.timestamp.isoformat() if log.timestamp else None,
                 "level": log.level,
                 "message": log.message,
                 "step": log.step,
-                "metadata": log.metadata
+                "metadata": log.log_metadata
             }
             for log in reversed(logs)  # Chronological order
         ]

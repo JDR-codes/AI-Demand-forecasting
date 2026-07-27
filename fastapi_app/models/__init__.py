@@ -83,7 +83,7 @@ from fastapi_app.models.training_job_model import TrainingJob, TrainingHistory, 
 from fastapi_app.models.training_configuration_model import TrainingConfiguration
 
 # ============================================================================
-# RECOMMENDATION MODELS - UPDATED (No job models)
+# RECOMMENDATION MODELS
 # ============================================================================
 from fastapi_app.models.recommendation_result_model import (
     RecommendationResult,
@@ -105,12 +105,12 @@ from fastapi_app.models.notification_model import (
 )
 
 # ============================================================================
-# INVENTORY MODELS
+# INVENTORY MODELS - UPDATED (Includes SafetyStockCalculation)
 # ============================================================================
 from fastapi_app.models.inventory_model import (
     InventorySKU,
     WarehouseInventory,
-    SafetyStockCalculation,
+    SafetyStockCalculation,  # ✅ Added back
     ReorderPoint,
     InventoryTransfer,
     ExcessStock,
@@ -201,7 +201,7 @@ __all__ = [
     'TrainingJobStepDetail',
     'TrainingConfiguration',
     
-    # Recommendation - UPDATED (No job models)
+    # Recommendation
     'RecommendationResult',
     'RecommendationResultStatus',
     'RecommendationResultPriority',
@@ -215,10 +215,10 @@ __all__ = [
     'NotificationPriority',
     'NotificationType',
     
-    # Inventory
+    # Inventory - UPDATED 
     'InventorySKU',
     'WarehouseInventory',
-    'SafetyStockCalculation',
+    'SafetyStockCalculation',  
     'ReorderPoint',
     'InventoryTransfer',
     'ExcessStock',

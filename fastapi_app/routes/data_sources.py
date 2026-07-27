@@ -64,6 +64,14 @@ def create_data_source_endpoint(
 ):
     return create_data_source(db, payload.dict())
 
+@router.get("/schedules")
+def get_all_schedules(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Get all scheduled jobs."""
+    return scheduler.get_scheduled_jobs()
+
 @router.get("/{data_source_id}", response_model=DataSourceOut)
 def get_data_source_endpoint(
     data_source_id: int,
@@ -123,10 +131,25 @@ def get_connection_test_history(
 ):
     """Get connection test history for a data source."""
     from fastapi_app.models.connection_history_model import ConnectionHistory
+    from fastapi_app.services.data_integration.test_connection_service import TestConnectionService
+    
+    ds = get_data_source(db, data_source_id)
+    if not ds:
+        raise HTTPException(status_code=404, detail="Data source not found")
     
     history = db.query(ConnectionHistory).filter(
         ConnectionHistory.datasource_id == data_source_id
     ).order_by(ConnectionHistory.started_at.desc()).limit(limit).all()
+    
+    # If no test history exists yet, run an initial connection test to record history
+    if not history:
+        try:
+            TestConnectionService.test_connection_with_history(db, ds)
+            history = db.query(ConnectionHistory).filter(
+                ConnectionHistory.datasource_id == data_source_id
+            ).order_by(ConnectionHistory.started_at.desc()).limit(limit).all()
+        except Exception as e:
+            logger.warning(f"Auto connection test failed for data source {data_source_id}: {e}")
     
     return [
         {
@@ -324,13 +347,7 @@ def remove_schedule_data_source_endpoint(
     
     return {"message": "Schedule removed", "data_source_id": data_source_id}
 
-@router.get("/schedules")
-def get_all_schedules(
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    """Get all scheduled jobs."""
-    return scheduler.get_scheduled_jobs()
+
 
 # ============================================================================
 # HEALTH & LOGS

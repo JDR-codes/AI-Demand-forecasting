@@ -128,9 +128,12 @@ def process_upload(db: Session, upload_id: int) -> Optional[Upload]:
         
     except Exception as e:
         logger.error(f"Failed to process upload {upload_id}: {str(e)}")
-        upload.status = "failed"
-        upload.processing_status = "failed"
-        db.commit()
+        db.rollback()
+        upload = get_upload(db, upload_id)
+        if upload:
+            upload.status = "failed"
+            upload.processing_status = "failed"
+            db.commit()
         return upload
 
 

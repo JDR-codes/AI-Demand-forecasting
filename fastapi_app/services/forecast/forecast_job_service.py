@@ -41,6 +41,49 @@ class ForecastJobService:
         created_by: int = None
     ) -> ForecastJob:
         """Create a new forecast job."""
+        from fastapi_app.models.model_registry_model import ModelRegistry
+        from fastapi import HTTPException
+        
+        # Resolve model registry ID
+        model_id = config.model_registry_id
+        if not model_id or model_id in ["", "string", "default"]:
+            default_model = db.query(ModelRegistry).filter(ModelRegistry.is_default == True).first()
+            if not default_model:
+                default_model = db.query(ModelRegistry).filter(ModelRegistry.is_active == True).first()
+            
+            if default_model:
+                model_id = default_model.id
+            else:
+                # Auto-seed a default registered model if none exists
+                try:
+                    default_model = ModelRegistry(
+                        name="Default ARIMA Model",
+                        model_type="arima",
+                        version="v1",
+                        is_default=True,
+                        is_active=True,
+                        status="active",
+                        description="Default system-generated ARIMA model."
+                    )
+                    db.add(default_model)
+                    db.commit()
+                    db.refresh(default_model)
+                    model_id = default_model.id
+                except Exception as e:
+                    logger.error(f"Failed to auto-seed default model: {e}")
+                    raise HTTPException(
+                        status_code=400,
+                        detail="No registered models found. Please train and register a model first."
+                    )
+        else:
+            # Validate user-provided model ID exists
+            model_exists = db.query(ModelRegistry).filter(ModelRegistry.id == model_id).first()
+            if not model_exists:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Model registry entry with ID '{model_id}' does not exist. Please specify a valid model registry ID."
+                )
+
         job_id = str(uuid.uuid4())
         
         configuration = config.configuration or {}
@@ -54,7 +97,7 @@ class ForecastJobService:
         job = ForecastJob(
             job_id=job_id,
             upload_id=config.upload_id,
-            model_registry_id=config.model_registry_id,
+            model_registry_id=model_id,
             forecast_horizon=config.forecast_horizon or 7,
             configuration=configuration,
             sku=config.sku or "default",

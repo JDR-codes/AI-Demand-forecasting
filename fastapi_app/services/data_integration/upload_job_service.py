@@ -125,14 +125,12 @@ class UploadJobService:
             upload.processing_status = "reading"
             db.commit()
             
-            asyncio.create_task(
-                manager.send_progress_update(
-                    channel="upload",
-                    job_id=job.job_id,
-                    progress=20,
-                    step="Reading file",
-                    status="running"
-                )
+            manager.send_progress_update_sync(
+                channel="upload",
+                job_id=job.job_id,
+                progress=20,
+                step="Reading file",
+                status="running"
             )
             
             # Step 2: Read
@@ -150,14 +148,12 @@ class UploadJobService:
             
             UploadJobService._update_step(db, job.id, "read", "completed")
             
-            asyncio.create_task(
-                manager.send_progress_update(
-                    channel="upload",
-                    job_id=job.job_id,
-                    progress=50,
-                    step="Validating data",
-                    status="running"
-                )
+            manager.send_progress_update_sync(
+                channel="upload",
+                job_id=job.job_id,
+                progress=50,
+                step="Validating data",
+                status="running"
             )
             
             # Step 3: Validate
@@ -175,14 +171,12 @@ class UploadJobService:
             
             UploadJobService._update_step(db, job.id, "validate", "completed")
             
-            asyncio.create_task(
-                manager.send_progress_update(
-                    channel="upload",
-                    job_id=job.job_id,
-                    progress=80,
-                    step="Storing data",
-                    status="running"
-                )
+            manager.send_progress_update_sync(
+                channel="upload",
+                job_id=job.job_id,
+                progress=80,
+                step="Storing data",
+                status="running"
             )
             
             # Step 4: Store
@@ -209,14 +203,12 @@ class UploadJobService:
             upload.duration_seconds = job.duration_seconds
             db.commit()
             
-            asyncio.create_task(
-                manager.send_progress_update(
-                    channel="upload",
-                    job_id=job.job_id,
-                    progress=100,
-                    step="Completed",
-                    status="completed"
-                )
+            manager.send_progress_update_sync(
+                channel="upload",
+                job_id=job.job_id,
+                progress=100,
+                step="Completed",
+                status="completed"
             )
             
             # Notification
@@ -233,6 +225,7 @@ class UploadJobService:
             
         except Exception as e:
             logger.error(f"Upload job {job_id} failed: {str(e)}")
+            db.rollback()
             job.status = UploadJobStatus.FAILED
             job.error_message = str(e)
             job.completed_at = datetime.utcnow()
@@ -242,14 +235,12 @@ class UploadJobService:
             upload.status = "failed"
             db.commit()
             
-            asyncio.create_task(
-                manager.send_progress_update(
-                    channel="upload",
-                    job_id=job.job_id,
-                    progress=100,
-                    step="Failed",
-                    status="failed"
-                )
+            manager.send_progress_update_sync(
+                channel="upload",
+                job_id=job.job_id,
+                progress=100,
+                step="Failed",
+                status="failed"
             )
             
             if upload.uploaded_by:
@@ -287,15 +278,41 @@ class UploadJobService:
         objects_to_add = []
         
         for record in records:
+            raw_record = {}
+            for key, value in record.items():
+                if pd.isna(value):
+                    raw_record[key] = None
+                elif hasattr(value, 'to_pydatetime'):
+                    raw_record[key] = value.isoformat()
+                elif hasattr(value, 'tolist'):
+                    raw_record[key] = value.tolist()
+                elif hasattr(value, 'item'):
+                    raw_record[key] = value.item()
+                elif isinstance(value, (datetime, pd.Timestamp)):
+                    raw_record[key] = value.isoformat()
+                else:
+                    raw_record[key] = value
+
+            date_val = record.get('date')
+            if hasattr(date_val, 'to_pydatetime'):
+                date_val = date_val.to_pydatetime()
+            elif isinstance(date_val, (int, float)) and not pd.isna(date_val):
+                date_val = None
+
+            demand_val = record.get('demand')
+            revenue_val = record.get('revenue')
+            units_val = record.get('units')
+            sku_val = record.get('sku')
+
             obj = RawSales(
                 upload_id=upload_id,
-                raw_data=record,
+                raw_data=raw_record,
                 validation_status="validated",
-                date=record.get('date'),
-                sku=record.get('sku'),
-                demand=record.get('demand'),
-                revenue=record.get('revenue'),
-                units=record.get('units')
+                date=date_val,
+                sku=str(sku_val) if sku_val is not None and not pd.isna(sku_val) else None,
+                demand=float(demand_val) if demand_val is not None and not pd.isna(demand_val) else None,
+                revenue=float(revenue_val) if revenue_val is not None and not pd.isna(revenue_val) else None,
+                units=int(units_val) if units_val is not None and not pd.isna(units_val) else None
             )
             objects_to_add.append(obj)
         

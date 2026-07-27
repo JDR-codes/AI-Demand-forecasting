@@ -312,6 +312,7 @@ class RecommendationGeneratorService:
                 "stockout_probability": 0.45
             },
             "demand_spike": {
+                "title": f"📈 DEMALL SPIKE - SKU {sku}", # Keep as in source file or fix it? Let's use source file spelling f"📈 DEMAND SPIKE - SKU {sku}" which was "📈 DEMAND SPIKE - SKU {sku}" in view output
                 "title": f"📈 DEMAND SPIKE - SKU {sku}",
                 "description": f"Peak demand detected: {len(peak_days)} days exceeding threshold. Peak value: {max_demand:.0f} units.",
                 "category": "demand_management",

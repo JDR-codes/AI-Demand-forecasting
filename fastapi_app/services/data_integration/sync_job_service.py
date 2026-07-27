@@ -13,6 +13,7 @@ import logging
 
 from fastapi_app.models.sync_job_model import SyncJob, SyncJobStatus, SyncJobStep, SyncJobStepDetail
 from fastapi_app.models.data_source_model import DataSource
+from fastapi_app.models.sync_log_model import SyncLog
 from fastapi_app.services.data_integration.data_source_service import (
     fetch_data_from_source,
     store_raw_data_batch,
@@ -117,14 +118,12 @@ class SyncJobService:
             job.current_step = SyncJobStep.CONNECTING
             db.commit()
             
-            asyncio.create_task(
-                manager.send_progress_update(
-                    channel="sync",
-                    job_id=job.job_id,
-                    progress=25,
-                    step="Connecting to source",
-                    status="running"
-                )
+            manager.send_progress_update_sync(
+                channel="sync",
+                job_id=job.job_id,
+                progress=25,
+                step="Connecting to source",
+                status="running"
             )
             
             # Step 2: Downloading
@@ -139,14 +138,12 @@ class SyncJobService:
             job.rows_total = len(data)
             db.commit()
             
-            asyncio.create_task(
-                manager.send_progress_update(
-                    channel="sync",
-                    job_id=job.job_id,
-                    progress=50,
-                    step="Downloading data",
-                    status="running"
-                )
+            manager.send_progress_update_sync(
+                channel="sync",
+                job_id=job.job_id,
+                progress=50,
+                step="Downloading data",
+                status="running"
             )
             
             # Step 3: Validating
@@ -162,14 +159,12 @@ class SyncJobService:
             job.rows_failed = len(errors)
             db.commit()
             
-            asyncio.create_task(
-                manager.send_progress_update(
-                    channel="sync",
-                    job_id=job.job_id,
-                    progress=75,
-                    step="Validating data",
-                    status="running"
-                )
+            manager.send_progress_update_sync(
+                channel="sync",
+                job_id=job.job_id,
+                progress=75,
+                step="Validating data",
+                status="running"
             )
             
             # Step 4: Saving
@@ -189,15 +184,28 @@ class SyncJobService:
             job.duration_seconds = (job.completed_at - job.started_at).total_seconds()
             db.commit()
             
-            asyncio.create_task(
-                manager.send_progress_update(
-                    channel="sync",
-                    job_id=job.job_id,
-                    progress=100,
-                    step="Completed",
-                    status="completed"
-                )
+            manager.send_progress_update_sync(
+                channel="sync",
+                job_id=job.job_id,
+                progress=100,
+                step="Completed",
+                status="completed"
             )
+            
+            # Create SyncLog record
+            sync_log = SyncLog(
+                datasource_id=ds.id,
+                started_at=job.started_at,
+                completed_at=job.completed_at,
+                status="success",
+                rows_processed=job.rows_processed,
+                rows_failed=job.rows_failed,
+                duration_seconds=job.duration_seconds,
+                message=f"Data source '{ds.name}' synced successfully. {len(data)} records processed.",
+                triggered_by=job.triggered_by
+            )
+            db.add(sync_log)
+            db.commit()
             
             # Update data source
             ds.last_sync = datetime.utcnow()
@@ -223,15 +231,30 @@ class SyncJobService:
             job.completed_at = datetime.utcnow()
             db.commit()
             
-            asyncio.create_task(
-                manager.send_progress_update(
-                    channel="sync",
-                    job_id=job.job_id,
-                    progress=100,
-                    step="Failed",
-                    status="failed"
-                )
+            manager.send_progress_update_sync(
+                channel="sync",
+                job_id=job.job_id,
+                progress=100,
+                step="Failed",
+                status="failed"
             )
+            
+            # Create SyncLog failure record
+            if ds:
+                sync_log = SyncLog(
+                    datasource_id=ds.id,
+                    started_at=job.started_at,
+                    completed_at=job.completed_at,
+                    status="failed",
+                    rows_processed=job.rows_processed or 0,
+                    rows_failed=job.rows_failed or 0,
+                    duration_seconds=job.duration_seconds,
+                    message=f"Data source '{ds.name}' sync failed: {str(e)}",
+                    error_details=str(e),
+                    triggered_by=job.triggered_by
+                )
+                db.add(sync_log)
+                db.commit()
             
             admin_users = db.query(User).filter(User.is_admin == True).all()
             for admin in admin_users:

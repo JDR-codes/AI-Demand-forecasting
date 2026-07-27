@@ -1,3 +1,4 @@
+# fastapi_app/services/websocket/websocket_manager.py
 from typing import Dict, List, Set, Any, Optional
 import json
 import logging
@@ -15,13 +16,55 @@ class ConnectionManager:
         self.connections: Dict[str, List[WebSocket]] = {}
         self.user_connections: Dict[int, WebSocket] = {}
         self.channel_subscriptions: Dict[str, List[int]] = {}
-        self._lock = asyncio.Lock()
-    
+        self._lock: Optional[asyncio.Lock] = None
+        self.main_loop: Optional[asyncio.AbstractEventLoop] = None
+
+    def set_loop(self, loop: asyncio.AbstractEventLoop):
+        """Set the main application event loop."""
+        self.main_loop = loop
+        logger.info("ConnectionManager main event loop set.")
+
+    @property
+    def lock(self) -> asyncio.Lock:
+        """Get or create asyncio lock lazily for the active event loop context."""
+        if self._lock is None:
+            self._lock = asyncio.Lock()
+        return self._lock
+
+    def run_async(self, coro):
+        """
+        Safely execute a coroutine from either an async context or a sync background thread.
+        """
+        try:
+            current_loop = asyncio.get_running_loop()
+            if current_loop.is_running():
+                return current_loop.create_task(coro)
+        except RuntimeError:
+            pass
+
+        # Call from background thread without running event loop
+        if self.main_loop and self.main_loop.is_running():
+            return asyncio.run_coroutine_threadsafe(coro, self.main_loop)
+
+        # Fallback if no main loop registered
+        try:
+            return asyncio.run(coro)
+        except Exception as e:
+            logger.error(f"Failed to run coroutine in fallback mode: {e}")
+            return None
+
     async def connect(self, websocket: WebSocket, channel: str = "dashboard", user_id: int = None):
         """Connect a WebSocket to a channel."""
         await websocket.accept()
         
-        async with self._lock:
+        # Save main loop automatically if not already set
+        if self.main_loop is None or self.main_loop.is_closed():
+            try:
+                self.main_loop = asyncio.get_running_loop()
+            except RuntimeError:
+                pass
+
+        async with self.lock:
             if channel not in self.connections:
                 self.connections[channel] = []
             self.connections[channel].append(websocket)
@@ -65,7 +108,7 @@ class ConnectionManager:
         
         # Clean up disconnected connections
         if disconnected:
-            async with self._lock:
+            async with self.lock:
                 for idx in sorted(disconnected, reverse=True):
                     if idx < len(self.connections[channel]):
                         self.connections[channel].pop(idx)
@@ -97,7 +140,7 @@ class ConnectionManager:
             
             # Clean up disconnected connections
             if disconnected:
-                async with self._lock:
+                async with self.lock:
                     for idx in sorted(disconnected, reverse=True):
                         if idx < len(self.connections[channel]):
                             self.connections[channel].pop(idx)
@@ -124,6 +167,28 @@ class ConnectionManager:
             "timestamp": datetime.utcnow().isoformat()
         }
         await self.send_to_channel(channel, message)
+
+    def send_progress_update_sync(
+        self,
+        channel: str,
+        job_id: str,
+        progress: float,
+        step: str,
+        status: str,
+        remaining_time: int = None,
+        metadata: dict = None
+    ):
+        """Thread-safe synchronous progress update for background workers."""
+        coro = self.send_progress_update(
+            channel=channel,
+            job_id=job_id,
+            progress=progress,
+            step=step,
+            status=status,
+            remaining_time=remaining_time,
+            metadata=metadata
+        )
+        return self.run_async(coro)
     
     async def send_notification(
         self,
@@ -147,6 +212,28 @@ class ConnectionManager:
             "timestamp": datetime.utcnow().isoformat()
         }
         await self.send_to_user(user_id, data)
+
+    def send_notification_sync(
+        self,
+        user_id: int,
+        title: str,
+        message: str,
+        notification_type: str,
+        priority: str,
+        entity_type: str = None,
+        entity_id: str = None
+    ):
+        """Thread-safe synchronous notification dispatch for background workers."""
+        coro = self.send_notification(
+            user_id=user_id,
+            title=title,
+            message=message,
+            notification_type=notification_type,
+            priority=priority,
+            entity_type=entity_type,
+            entity_id=entity_id
+        )
+        return self.run_async(coro)
     
     async def send_dashboard_update(self, data: dict):
         """Send a dashboard update."""
@@ -156,39 +243,11 @@ class ConnectionManager:
             "timestamp": datetime.utcnow().isoformat()
         }
         await self.send_to_channel("dashboard", message)
-    
-    # ============================================================
-    # RECOMMENDATION METHODS
-    # ============================================================
-    
-    async def send_recommendation_update(self, data: dict):
-        """
-        Send recommendation update to clients subscribed to recommendations channel.
-        Uses send_to_channel() since broadcast_to_channel() doesn't exist.
-        """
-        await self.send_to_channel("recommendations", data)
-    
-    async def send_recommendation_executed(self, recommendation_id: int, sku: str):
-        """Send recommendation executed update."""
-        await self.send_recommendation_update({
-            "type": "recommendation_executed",
-            "id": recommendation_id,
-            "sku": sku,
-            "timestamp": datetime.utcnow().isoformat()
-        })
-    
-    async def send_recommendation_generated(self, forecast_job_id: str, count: int):
-        """Send recommendation generated update."""
-        await self.send_recommendation_update({
-            "type": "recommendation_generated",
-            "forecast_job_id": forecast_job_id,
-            "count": count,
-            "timestamp": datetime.utcnow().isoformat()
-        })
-    
-    # ============================================================
-    # UTILITY METHODS
-    # ============================================================
+
+    def send_dashboard_update_sync(self, data: dict):
+        """Thread-safe synchronous dashboard update for background workers."""
+        coro = self.send_dashboard_update(data)
+        return self.run_async(coro)
     
     def get_connections_count(self) -> Dict[str, int]:
         """Get connection counts by channel."""
@@ -208,7 +267,7 @@ class ConnectionManager:
                     pass
             
             if len(active) != len(connections):
-                async with self._lock:
+                async with self.lock:
                     self.connections[channel] = active
                 logger.info(f"Cleaned up {len(connections) - len(active)} inactive connections from {channel}")
 

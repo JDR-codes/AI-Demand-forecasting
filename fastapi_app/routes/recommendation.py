@@ -94,11 +94,11 @@ def generate_recommendations(
     if "error" in summary:
         raise HTTPException(status_code=400, detail=summary["error"])
     
-    # 1. Analyze demand
     predictions = [r.prediction for r in results]
     dates = [r.forecast_date for r in results]
     
-    analysis = RecommendationAnalysisService.analyze_demand(
+    # 1. Analyze demand
+    demand_analysis = RecommendationAnalysisService.analyze_demand(
         predictions=predictions,
         dates=dates,
         sku=forecast_job.sku,
@@ -108,10 +108,17 @@ def generate_recommendations(
     )
     
     # 2. Analyze inventory
-    analysis = RecommendationAnalysisService.analyze_inventory(analysis)
+    inventory_analysis = RecommendationAnalysisService.analyze_inventory(demand_analysis)
     
     # 3. Analyze risk
-    analysis = RecommendationAnalysisService.analyze_risk(analysis)
+    risk_analysis = RecommendationAnalysisService.analyze_risk(demand_analysis)
+    
+    # Combine analysis for the generator
+    analysis = {
+        **demand_analysis,
+        "inventory": inventory_analysis,
+        "risk": risk_analysis
+    }
     
     # 4. Generate recommendations
     result_data = [{
@@ -319,6 +326,23 @@ def get_ignored(
     return {"total": len(recs), "recommendations": recs}
 
 
+# ============================================================================
+# HISTORY
+# ============================================================================
+
+@router.get("/history")
+def get_history(
+    recommendation_id: Optional[int] = None,
+    action: Optional[str] = None,
+    limit: int = Query(100, ge=1, le=500),
+    offset: int = Query(0, ge=0),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Get recommendation history."""
+    return RecommendationHistoryService.get_history(db, recommendation_id, action, limit, offset)
+
+
 @router.get("/{recommendation_id}")
 def get_recommendation(
     recommendation_id: int,
@@ -487,23 +511,6 @@ def ignore_all(
         )
     
     return result
-
-
-# ============================================================================
-# HISTORY
-# ============================================================================
-
-@router.get("/history")
-def get_history(
-    recommendation_id: Optional[int] = None,
-    action: Optional[str] = None,
-    limit: int = Query(100, ge=1, le=500),
-    offset: int = Query(0, ge=0),
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
-):
-    """Get recommendation history."""
-    return RecommendationHistoryService.get_history(db, recommendation_id, action, limit, offset)
 
 
 # ============================================================================

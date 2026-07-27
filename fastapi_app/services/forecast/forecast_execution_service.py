@@ -1,7 +1,6 @@
 # fastapi_app/services/forecast/forecast_execution_service.py
 """
 Forecast Execution Service - Full pipeline execution with step tracking.
-Modified to directly trigger recommendation generation after completion.
 """
 import asyncio
 import time
@@ -23,7 +22,6 @@ from fastapi_app.models.model_registry_model import ModelRegistry
 from fastapi_app.models.forecast_metric_history_model import ForecastMetricHistory
 from fastapi_app.services.forecast.forecast_service import prepare_series, load_registered_model
 from fastapi_app.services.forecast.forecast_metrics import ForecastMetricsService
-from fastapi_app.services.forecast.forecast_result_service import ForecastResultService
 from fastapi_app.services.websocket.websocket_manager import manager
 from fastapi_app.services.notifications.notification_service import NotificationService
 from fastapi_app.core.config import DEFAULT_DATASET_PATH
@@ -122,6 +120,11 @@ class ForecastExecutionService:
         job = db.query(ForecastJob).filter(ForecastJob.job_id == job_id).first()
         if not job:
             return None
+        
+        # Set job status to RUNNING at start of execution
+        job.status = ForecastJobStatus.RUNNING
+        job.started_at = datetime.utcnow()
+        db.commit()
         
         start_time = time.time()
         total_steps = len(FORECAST_STEPS)
@@ -237,7 +240,7 @@ class ForecastExecutionService:
                 job.current_step_message = "Completed successfully"
                 db.commit()
                 
-                # Insert ForecastMetricHistory
+                # ✅ Insert ForecastMetricHistory
                 if job.metrics:
                     metric_history = ForecastMetricHistory(
                         model_id=job.model_registry_id,
@@ -277,108 +280,6 @@ class ForecastExecutionService:
                     "job_id": job_id,
                     "timestamp": datetime.utcnow().isoformat()
                 })
-                
-                # ============================================================
-                # 🔥 PHASE 1: Generate Recommendations Directly (No background job)
-                # ============================================================
-                try:
-                    from fastapi_app.services.recommendation.recommendation_analysis_service import RecommendationAnalysisService
-                    from fastapi_app.services.recommendation.recommendation_generator_service import RecommendationGeneratorService
-                    from fastapi_app.services.recommendation.recommendation_result_service import RecommendationResultService
-                    from fastapi_app.services.forecast.forecast_result_service import ForecastResultService
-                    
-                    logger.info(f"Generating recommendations for forecast job {job_id}")
-                    
-                    # Get forecast results
-                    results = db.query(ForecastResult).filter(
-                        ForecastResult.forecast_job_id == job.id,
-                        ForecastResult.is_forecast == True
-                    ).order_by(ForecastResult.forecast_date).all()
-                    
-                    if results:
-                        # Get forecast summary
-                        summary = ForecastResultService.get_summary(db, job_id)
-                        
-                        if "error" not in summary:
-                            # 1. Analyze demand
-                            predictions = [r.prediction for r in results]
-                            dates = [r.forecast_date for r in results]
-                            
-                            analysis = RecommendationAnalysisService.analyze_demand(
-                                predictions=predictions,
-                                dates=dates,
-                                sku=job.sku,
-                                region=job.region,
-                                warehouse=job.warehouse,
-                                forecast_summary=summary
-                            )
-                            
-                            # 2. Analyze inventory
-                            analysis = RecommendationAnalysisService.analyze_inventory(analysis)
-                            
-                            # 3. Analyze risk
-                            analysis = RecommendationAnalysisService.analyze_risk(analysis)
-                            
-                            # 4. Generate recommendations
-                            result_data = [{
-                                "date": r.forecast_date,
-                                "prediction": r.prediction,
-                                "confidence_score": r.confidence_score,
-                                "is_peak": r.is_peak,
-                                "sku": r.sku,
-                                "region": r.region,
-                                "warehouse": r.warehouse
-                            } for r in results]
-                            
-                            recommendations = RecommendationGeneratorService.generate_recommendations(
-                                analysis=analysis,
-                                forecast_results=result_data,
-                                sku=job.sku,
-                                region=job.region,
-                                warehouse=job.warehouse,
-                                user_id=job.created_by,
-                                forecast_summary=summary
-                            )
-                            
-                            if recommendations:
-                                # 5. Save to database
-                                saved = RecommendationResultService.save_recommendations(
-                                    db=db,
-                                    recommendations=recommendations,
-                                    forecast_job_id=job_id
-                                )
-                                
-                                # 6. Send notifications for critical and high
-                                for rec in saved:
-                                    if rec.priority.value in ["critical", "high"]:
-                                        NotificationService.create_recommendation_notification(
-                                            db=db,
-                                            user_id=job.created_by,
-                                            success=True,
-                                            count=1,
-                                            message=f"Recommendation for {rec.sku}: {rec.action_label or 'Take action'}"
-                                        )
-                                
-                                # 7. Send dashboard refresh via WebSocket
-                                await manager.send_dashboard_update({
-                                    "type": "recommendation_generated",
-                                    "forecast_job_id": job_id,
-                                    "count": len(saved),
-                                    "timestamp": datetime.utcnow().isoformat()
-                                })
-                                
-                                logger.info(f"Generated {len(saved)} recommendations for forecast {job_id}")
-                            else:
-                                logger.info(f"No recommendations generated for forecast {job_id}")
-                        else:
-                            logger.warning(f"Could not get forecast summary: {summary.get('error')}")
-                    else:
-                        logger.warning(f"No forecast results found for {job_id}")
-                    
-                except ImportError as e:
-                    logger.warning(f"Recommendation module not available: {str(e)}")
-                except Exception as e:
-                    logger.error(f"Failed to generate recommendations: {str(e)}")
                 
         except Exception as e:
             logger.error(f"Forecast job {job_id} failed: {str(e)}")
@@ -478,6 +379,8 @@ class ForecastExecutionService:
     @staticmethod
     def _filter_series(series: pd.Series, job: ForecastJob) -> pd.Series:
         """Filter series by SKU, region, warehouse if configured."""
+        # Since we're working with a simple series, we can't filter by SKU here
+        # This is handled in _get_series when querying raw data
         return series
     
     @staticmethod
@@ -642,8 +545,9 @@ class ForecastExecutionService:
         
         results_to_add = []
         
-        # 1. Save historical data (is_forecast=False)
+        # ✅ 1. Save historical data (is_forecast=False)
         if series is not None and len(series) > 0:
+            # Take last 30 historical points for context
             historical_series = series.tail(30)
             for date, value in historical_series.items():
                 if pd.isna(value):
@@ -655,15 +559,16 @@ class ForecastExecutionService:
                     warehouse=warehouse,
                     forecast_date=date.to_pydatetime() if hasattr(date, 'to_pydatetime') else date,
                     prediction=float(value),
-                    actual_value=float(value),
-                    confidence_score=1.0,
+                    actual_value=float(value),  # Historical values are actual
+                    confidence_score=1.0,  # 100% confidence for historical
                     model_used="historical",
-                    is_forecast=False,
+                    is_forecast=False,  # ✅ Mark as historical
                     is_peak=False
                 )
                 results_to_add.append(result)
         
-        # 2. Save forecast data (is_forecast=True)
+        # ✅ 2. Save forecast data (is_forecast=True)
+        # Generate dates
         last_date = series.index[-1] if len(series) > 0 else pd.Timestamp.now()
         forecast_dates = pd.date_range(
             start=last_date + pd.Timedelta(days=1),
@@ -671,13 +576,16 @@ class ForecastExecutionService:
             freq='D'
         )
         
+        # Update job forecast date range
         job.forecast_start_date = forecast_dates[0].to_pydatetime()
         job.forecast_end_date = forecast_dates[-1].to_pydatetime()
         
+        # Get confidence intervals
         confidence_interval = job.metrics.get("confidence_interval", {})
         upper = confidence_interval.get("upper", [])
         lower = confidence_interval.get("lower", [])
         
+        # Get peaks
         peaks = job.metrics.get("peaks", [])
         peak_steps = {p["step"] - 1 for p in peaks}
         
@@ -693,7 +601,7 @@ class ForecastExecutionService:
                 confidence_upper=upper[i] if i < len(upper) else None,
                 confidence_lower=lower[i] if i < len(lower) else None,
                 model_used=job.metrics.get("model_type", "unknown"),
-                is_forecast=True,
+                is_forecast=True,  # ✅ Mark as forecast
                 is_peak=i in peak_steps
             )
             results_to_add.append(result)
@@ -780,6 +688,7 @@ class ForecastExecutionService:
         if not old_job:
             return None
         
+        # Create new job with same config
         from fastapi_app.schemas.forecast_schema import ForecastJobCreate
         config = ForecastJobCreate(
             upload_id=old_job.upload_id,
@@ -794,6 +703,7 @@ class ForecastExecutionService:
         from fastapi_app.services.forecast.forecast_job_service import ForecastJobService
         new_job = ForecastJobService.create_job(db, config, old_job.created_by)
         
+        # Start the new job
         TaskManager.run_forecast_job(new_job.job_id)
         
         return new_job

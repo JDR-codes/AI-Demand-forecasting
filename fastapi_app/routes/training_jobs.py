@@ -12,7 +12,7 @@ from fastapi_app.schemas.forecast_schema import (
     TrainingHistoryResponse
 )
 from fastapi_app.services.forecast.training_service import TrainingService
-from fastapi_app.services.forecast.forecast_metrics import ForecastMetricsService
+from fastapi_app.services.forecast.model_registry_service import ModelRegistryService
 
 router = APIRouter(prefix="/api/training", tags=["Training"])
 
@@ -73,5 +73,4 @@ def get_training_history(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Get training history."""
-    return ForecastMetricsService.get_training_history(db, model_registry_id)[:limit]
+    return ModelRegistryService.get_training_history(db, model_registry_id, limit)

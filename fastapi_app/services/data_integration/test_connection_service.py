@@ -124,12 +124,15 @@ class TestConnectionService:
     def _test_mysql(connection_string: str) -> Dict[str, Any]:
         """Test MySQL connection."""
         import re
+        from urllib.parse import unquote
         pattern = r'mysql://([^:]+):([^@]+)@([^:]+):?(\d+)?/(.+)'
         match = re.match(pattern, connection_string)
         if not match:
             return {"success": False, "message": "Invalid MySQL connection string"}
         
         username, password, host, port, database = match.groups()
+        username = unquote(username)
+        password = unquote(password)
         port = int(port) if port else 3306
         
         try:

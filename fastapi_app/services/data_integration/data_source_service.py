@@ -46,6 +46,13 @@ def create_data_source(db: Session, data: Dict[str, Any]) -> DataSource:
     db.add(ds)
     db.commit()
     db.refresh(ds)
+    
+    # Auto-test connection to record initial test history
+    try:
+        TestConnectionService.test_connection_with_history(db, ds)
+    except Exception as e:
+        logger.warning(f"Initial connection test failed for data source {ds.id}: {e}")
+        
     return ds
 
 def update_data_source(db: Session, data_source_id: int, data: Dict[str, Any]) -> Optional[DataSource]:
@@ -75,7 +82,7 @@ def test_connection(db: Session, data_source_id: int) -> Dict[str, Any]:
     if not ds:
         return {"success": False, "message": "Data source not found"}
     
-    return TestConnectionService.test_connection(ds)
+    return TestConnectionService.test_connection_with_history(db, ds)
 
 def schedule_sync_data_source(db: Session, data_source_id: int, frequency: str = None) -> Optional[DataSource]:
     """Schedule a data source sync with the scheduler."""
@@ -121,26 +128,49 @@ def get_data_source_health(db: Session, data_source_id: int) -> Optional[Dict[st
         "sync_frequency": ds.sync_frequency
     }
 
-def get_data_source_logs(db: Session, data_source_id: int) -> List[Dict[str, Any]]:
-    """Get logs for a data source"""
+def get_data_source_logs(db: Session, data_source_id: int, limit: int = 20) -> List[Dict[str, Any]]:
+    """Get logs for a data source from both SyncJob and SyncLog."""
+    from fastapi_app.models.sync_job_model import SyncJob
+    
     ds = get_data_source(db, data_source_id)
     if not ds:
         return []
     
-    logs = db.query(SyncLog).filter(
-        SyncLog.datasource_id == data_source_id
-    ).order_by(SyncLog.started_at.desc()).limit(10).all()
+    logs_list = []
     
-    return [
-        {
+    # 1. Fetch SyncJob records
+    sync_jobs = db.query(SyncJob).filter(
+        SyncJob.datasource_id == data_source_id
+    ).order_by(SyncJob.created_at.desc()).limit(limit).all()
+    
+    for job in sync_jobs:
+        status_val = job.status.value if hasattr(job.status, "value") else str(job.status)
+        msg = f"Synced {job.rows_processed} rows successfully." if status_val == "completed" else (job.error_message or f"Sync job {status_val}")
+        logs_list.append({
+            "timestamp": job.started_at or job.created_at,
+            "status": status_val,
+            "rows_processed": job.rows_processed or 0,
+            "duration_seconds": job.duration_seconds,
+            "message": msg
+        })
+    
+    # 2. Fetch SyncLog records
+    sync_logs = db.query(SyncLog).filter(
+        SyncLog.datasource_id == data_source_id
+    ).order_by(SyncLog.started_at.desc()).limit(limit).all()
+    
+    for log in sync_logs:
+        logs_list.append({
             "timestamp": log.started_at,
             "status": log.status,
-            "rows_processed": log.rows_processed,
+            "rows_processed": log.rows_processed or 0,
             "duration_seconds": log.duration_seconds,
-            "message": log.message
-        }
-        for log in logs
-    ]
+            "message": log.message or f"Sync {log.status}"
+        })
+        
+    # Sort combined logs by timestamp descending and take limit
+    logs_list.sort(key=lambda x: x["timestamp"] or datetime.min, reverse=True)
+    return logs_list[:limit]
 
 # ============================================================================
 # DASHBOARD METRICS
