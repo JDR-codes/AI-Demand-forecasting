@@ -1,0 +1,4 @@
+warehouse,sku,stock,reorder_level,last_updated
+WH01,SKU01,0.0,0.0,2026-08-01
+WH01,SKU02,1.0,1.0,2026-08-02
+WH02,SKU01,0.5,0.0,2026-08-03

@@ -1,0 +1,142 @@
+{
+  "trained_58328461": [
+    {
+      "path": "C:\\Users\\kizan\\OneDrive\\Desktop\\AI-Demand-forecasting-main 1\\AI-Demand-forecasting-main\\model_artifacts\\trained_58328461_20260722T090404.pkl",
+      "metadata": {
+        "order": [
+          1,
+          1,
+          1
+        ],
+        "trained_at": "20260722T090404",
+        "type": "arima"
+      }
+    }
+  ],
+  "trained_eb5fe4f5": [
+    {
+      "path": "C:\\Users\\kizan\\OneDrive\\Desktop\\AI-Demand-forecasting-main 1\\AI-Demand-forecasting-main\\model_artifacts\\trained_eb5fe4f5_20260722T090753.pkl",
+      "metadata": {
+        "order": [
+          1,
+          1,
+          1
+        ],
+        "trained_at": "20260722T090753",
+        "type": "arima"
+      }
+    }
+  ],
+  "trained_dac218cc": [
+    {
+      "path": "C:\\Users\\kizan\\OneDrive\\Desktop\\AI-Demand-forecasting-main 1\\AI-Demand-forecasting-main\\model_artifacts\\trained_dac218cc_20260722T091524.pkl",
+      "metadata": {
+        "order": [
+          1,
+          1,
+          1
+        ],
+        "trained_at": "20260722T091524",
+        "type": "arima"
+      }
+    }
+  ],
+  "trained_8d73fd8a": [
+    {
+      "path": "C:\\Users\\kizan\\OneDrive\\Desktop\\AI-Demand-forecasting-main 1\\AI-Demand-forecasting-main\\model_artifacts\\trained_8d73fd8a_20260722T102633.pkl",
+      "metadata": {
+        "order": [
+          1,
+          1,
+          1
+        ],
+        "trained_at": "20260722T102633",
+        "type": "arima"
+      }
+    }
+  ],
+  "trained_cfdb9584": [
+    {
+      "path": "C:\\Users\\kizan\\OneDrive\\Desktop\\ai-demand-forecast-main\\ai-demand-forecast-main\\Backend\\model_artifacts\\trained_cfdb9584_20260806T074717.pkl",
+      "metadata": {
+        "order": [
+          1,
+          1,
+          1
+        ],
+        "trained_at": "20260806T074717",
+        "type": "arima"
+      }
+    }
+  ],
+  "trained_ed1a4586": [
+    {
+      "path": "C:\\Users\\kizan\\OneDrive\\Desktop\\ai-demand-forecast-main\\ai-demand-forecast-main\\Backend\\model_artifacts\\trained_ed1a4586_20260806T080708.pkl",
+      "metadata": {
+        "order": [
+          1,
+          1,
+          1
+        ],
+        "trained_at": "20260806T080708",
+        "type": "arima"
+      }
+    }
+  ],
+  "trained_80cffe23": [
+    {
+      "path": "C:\\Users\\kizan\\OneDrive\\Desktop\\ai-demand-forecast-main\\ai-demand-forecast-main\\Backend\\model_artifacts\\trained_80cffe23_20260811T085007.pkl",
+      "metadata": {
+        "order": [
+          1,
+          1,
+          1
+        ],
+        "trained_at": "20260811T085007",
+        "type": "arima"
+      }
+    }
+  ],
+  "trained_43fb6ee8": [
+    {
+      "path": "C:\\Users\\kizan\\OneDrive\\Desktop\\ai-demand-forecast-main\\ai-demand-forecast-main\\Backend\\model_artifacts\\trained_43fb6ee8_20260811T091237.pkl",
+      "metadata": {
+        "order": [
+          1,
+          1,
+          1
+        ],
+        "trained_at": "20260811T091237",
+        "type": "arima"
+      }
+    }
+  ],
+  "trained_ff0db52b": [
+    {
+      "path": "C:\\Users\\kizan\\OneDrive\\Desktop\\ai-demand-forecast-main\\ai-demand-forecast-main\\Backend\\model_artifacts\\trained_ff0db52b_20260811T113334.pkl",
+      "metadata": {
+        "order": [
+          1,
+          1,
+          1
+        ],
+        "trained_at": "20260811T113334",
+        "type": "arima"
+      }
+    }
+  ],
+  "trained_f9d6b50d": [
+    {
+      "path": "C:\\Users\\kizan\\OneDrive\\Desktop\\ai-demand-forecast-main\\ai-demand-forecast-main\\Backend\\model_artifacts\\trained_f9d6b50d_20260812T063531.pkl",
+      "metadata": {
+        "order": [
+          1,
+          1,
+          1
+        ],
+        "trained_at": "20260812T063531",
+        "type": "arima"
+      }
+    }
+  ]
+}

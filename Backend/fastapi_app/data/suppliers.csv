@@ -1,0 +1,61 @@
+supplier,sku,lead_time,price,min_order
+FarmGate Inc. #991,SKU-0001,10,33.65,1388
+Harvest Direct Trading #85,SKU-0001,18,39.86,1813
+Fresh Fields Trading #594,SKU-0001,9,37.5,695
+FarmGate Inc. #991,SKU-0002,10,36.47,1388
+Harvest Direct Trading #85,SKU-0002,18,31.65,1813
+Fresh Fields Trading #594,SKU-0002,9,31.65,695
+FunCraft Inc. #567,SKU-0003,19,31.43,410
+Wondermakers Trading #492,SKU-0003,23,40.48,1582
+Wondermakers LLC #801,SKU-0003,16,37.51,1398
+FarmGate Inc. #991,SKU-0004,10,37.89,1388
+Harvest Direct Trading #85,SKU-0004,18,30.35,1813
+Fresh Fields Trading #594,SKU-0004,9,40.76,695
+FarmGate Inc. #991,SKU-0005,10,39.4,1388
+Harvest Direct Trading #85,SKU-0005,18,32.58,1813
+Fresh Fields Trading #594,SKU-0005,9,32.24,695
+FarmGate Inc. #991,SKU-0006,10,31.92,1388
+Harvest Direct Trading #85,SKU-0006,18,33.23,1813
+Fresh Fields Trading #594,SKU-0006,9,35.63,695
+FarmGate Inc. #991,SKU-0007,10,34.17,1388
+Harvest Direct Trading #85,SKU-0007,18,32.66,1813
+Fresh Fields Trading #594,SKU-0007,9,36.11,695
+FarmGate Inc. #991,SKU-0008,10,32.46,1388
+Harvest Direct Trading #85,SKU-0008,18,34.18,1813
+Fresh Fields Trading #594,SKU-0008,9,35.01,695
+FarmGate Inc. #991,SKU-0009,10,36.6,1388
+Harvest Direct Trading #85,SKU-0009,18,40.36,1813
+Fresh Fields Trading #594,SKU-0009,9,33.67,695
+FarmGate Inc. #991,SKU-0010,10,36.74,1388
+Harvest Direct Trading #85,SKU-0010,18,37.62,1813
+Fresh Fields Trading #594,SKU-0010,9,31.47,695
+NexGen Electronics Ltd. #853,SKU-0011,12,39.57,1336
+Amperion Supply Chain #474,SKU-0011,3,34.42,1681
+NexGen Electronics Supply Chain #840,SKU-0011,23,33.17,1494
+WoodCraft Supply Ltd. #445,SKU-0012,28,42.29,1223
+Oakline Wholesale #836,SKU-0012,22,42.48,1132
+WoodCraft Supply LLC #730,SKU-0012,27,40.68,1401
+FarmGate Inc. #991,SKU-0013,10,33.15,1388
+Harvest Direct Trading #85,SKU-0013,18,30.91,1813
+Fresh Fields Trading #594,SKU-0013,9,37.28,695
+WoodCraft Supply Ltd. #445,SKU-0014,28,37.98,1223
+Oakline Wholesale #836,SKU-0014,22,34.19,1132
+WoodCraft Supply LLC #730,SKU-0014,27,38.63,1401
+FarmGate Inc. #991,SKU-0015,10,31.0,1388
+Harvest Direct Trading #85,SKU-0015,18,40.74,1813
+Fresh Fields Trading #594,SKU-0015,9,33.49,695
+FarmGate Inc. #991,SKU-0016,10,38.02,1388
+Harvest Direct Trading #85,SKU-0016,18,34.11,1813
+Fresh Fields Trading #594,SKU-0016,9,36.43,695
+FunCraft Inc. #567,SKU-0017,19,36.28,410
+Wondermakers Trading #492,SKU-0017,23,32.3,1582
+Wondermakers LLC #801,SKU-0017,16,40.93,1398
+Wovenwear Partners #152,SKU-0018,4,39.69,966
+Wovenwear Inc. #989,SKU-0018,23,41.54,682
+Fabricraft Co. #386,SKU-0018,10,41.03,754
+Wovenwear Partners #152,SKU-0019,4,38.17,966
+Wovenwear Inc. #989,SKU-0019,23,41.87,682
+Fabricraft Co. #386,SKU-0019,10,32.36,754
+WoodCraft Supply Ltd. #445,SKU-0020,28,34.2,1223
+Oakline Wholesale #836,SKU-0020,22,32.45,1132
+WoodCraft Supply LLC #730,SKU-0020,27,35.7,1401

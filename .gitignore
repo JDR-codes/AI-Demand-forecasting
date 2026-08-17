@@ -1,17 +1,10 @@
-.env
 venv/
-.venv/
-alembic/__pycache__/
-
-# Python Cache
 __pycache__/
 *.pyc
-*.pyo
-*.pyd
-
-# IDE
+.env
+.env.*
+node_modules/
+dist/
+build/
 .vscode/
 .idea/
-
-media/*
-!media/.gitkeep

@@ -1,0 +1,501 @@
+sku,name,category,price
+SKU-001,Backpack SKU-001,Sports,99.88
+SKU-002,Face Wash SKU-002,Beauty,86.45
+SKU-003,Blender SKU-003,Home & Kitchen,235.03
+SKU-004,Shampoo SKU-004,Beauty,80.0
+SKU-005,Toaster SKU-005,Home & Kitchen,485.26
+SKU-006,Dumbbells SKU-006,Sports,99.09
+SKU-007,Moisturizer SKU-007,Beauty,159.08
+SKU-008,Shampoo SKU-008,Beauty,21.3
+SKU-009,Blender SKU-009,Home & Kitchen,205.93
+SKU-010,Running Shoes SKU-010,Sports,189.52
+SKU-011,Vacuum Cleaner SKU-011,Home & Kitchen,261.97
+SKU-012,Wireless Earbuds SKU-012,Electronics,431.37
+SKU-013,Moisturizer SKU-013,Beauty,41.88
+SKU-014,Yoga Mat SKU-014,Sports,483.16
+SKU-015,Jeans SKU-015,Clothing,159.26
+SKU-016,Serum SKU-016,Beauty,345.27
+SKU-017,Running Shoes SKU-017,Sports,252.64
+SKU-018,Air Fryer SKU-018,Home & Kitchen,136.8
+SKU-019,Dumbbells SKU-019,Sports,218.33
+SKU-020,Jacket SKU-020,Clothing,100.58
+SKU-021,Jeans SKU-021,Clothing,230.38
+SKU-022,Jacket SKU-022,Clothing,302.97
+SKU-023,Yoga Mat SKU-023,Sports,480.97
+SKU-024,Face Wash SKU-024,Beauty,142.96
+SKU-025,Serum SKU-025,Beauty,482.98
+SKU-026,Running Shoes SKU-026,Sports,145.24
+SKU-027,Face Wash SKU-027,Beauty,46.53
+SKU-028,Smartphone SKU-028,Electronics,107.37
+SKU-029,Blender SKU-029,Home & Kitchen,356.36
+SKU-030,Blender SKU-030,Home & Kitchen,387.92
+SKU-031,Serum SKU-031,Beauty,185.65
+SKU-032,Smartwatch SKU-032,Electronics,432.92
+SKU-033,Dumbbells SKU-033,Sports,56.75
+SKU-034,Sunscreen SKU-034,Beauty,299.74
+SKU-035,Blender SKU-035,Home & Kitchen,241.39
+SKU-036,Sunscreen SKU-036,Beauty,382.78
+SKU-037,Hoodie SKU-037,Clothing,266.14
+SKU-038,Jeans SKU-038,Clothing,225.27
+SKU-039,Air Fryer SKU-039,Home & Kitchen,164.03
+SKU-040,Backpack SKU-040,Sports,132.15
+SKU-041,Sunscreen SKU-041,Beauty,109.5
+SKU-042,Sunscreen SKU-042,Beauty,350.44
+SKU-043,Dumbbells SKU-043,Sports,315.93
+SKU-044,Bluetooth Speaker SKU-044,Electronics,437.02
+SKU-045,Running Shoes SKU-045,Sports,101.42
+SKU-046,Coffee Maker SKU-046,Home & Kitchen,69.82
+SKU-047,Smartphone SKU-047,Electronics,143.34
+SKU-048,Air Fryer SKU-048,Home & Kitchen,410.83
+SKU-049,Wireless Earbuds SKU-049,Electronics,13.41
+SKU-050,Air Fryer SKU-050,Home & Kitchen,247.57
+SKU-051,Wireless Earbuds SKU-051,Electronics,142.01
+SKU-052,Air Fryer SKU-052,Home & Kitchen,207.88
+SKU-053,Laptop SKU-053,Electronics,481.6
+SKU-054,Hoodie SKU-054,Clothing,157.43
+SKU-055,Smartphone SKU-055,Electronics,140.72
+SKU-056,Jeans SKU-056,Clothing,211.41
+SKU-057,Moisturizer SKU-057,Beauty,320.83
+SKU-058,Sneakers SKU-058,Clothing,249.83
+SKU-059,Water Bottle SKU-059,Sports,191.13
+SKU-060,Bluetooth Speaker SKU-060,Electronics,319.83
+SKU-061,Air Fryer SKU-061,Home & Kitchen,83.85
+SKU-062,Toaster SKU-062,Home & Kitchen,430.6
+SKU-063,Water Bottle SKU-063,Sports,117.92
+SKU-064,Hoodie SKU-064,Clothing,406.66
+SKU-065,Running Shoes SKU-065,Sports,470.86
+SKU-066,T-Shirt SKU-066,Clothing,341.09
+SKU-067,Smartphone SKU-067,Electronics,112.45
+SKU-068,Hoodie SKU-068,Clothing,121.99
+SKU-069,T-Shirt SKU-069,Clothing,263.15
+SKU-070,Laptop SKU-070,Electronics,498.16
+SKU-071,Backpack SKU-071,Sports,451.2
+SKU-072,Air Fryer SKU-072,Home & Kitchen,146.65
+SKU-073,Blender SKU-073,Home & Kitchen,429.6
+SKU-074,Smartwatch SKU-074,Electronics,51.23
+SKU-075,Running Shoes SKU-075,Sports,294.54
+SKU-076,Wireless Earbuds SKU-076,Electronics,487.1
+SKU-077,Jeans SKU-077,Clothing,247.95
+SKU-078,Toaster SKU-078,Home & Kitchen,119.89
+SKU-079,Smartwatch SKU-079,Electronics,126.25
+SKU-080,Shampoo SKU-080,Beauty,189.57
+SKU-081,Air Fryer SKU-081,Home & Kitchen,160.95
+SKU-082,Water Bottle SKU-082,Sports,190.18
+SKU-083,Sunscreen SKU-083,Beauty,447.1
+SKU-084,Blender SKU-084,Home & Kitchen,399.46
+SKU-085,Smartwatch SKU-085,Electronics,337.77
+SKU-086,Bluetooth Speaker SKU-086,Electronics,122.79
+SKU-087,Vacuum Cleaner SKU-087,Home & Kitchen,21.91
+SKU-088,Smartphone SKU-088,Electronics,497.33
+SKU-089,Face Wash SKU-089,Beauty,442.91
+SKU-090,Yoga Mat SKU-090,Sports,477.01
+SKU-091,Moisturizer SKU-091,Beauty,280.85
+SKU-092,Vacuum Cleaner SKU-092,Home & Kitchen,427.97
+SKU-093,Face Wash SKU-093,Beauty,103.55
+SKU-094,Wireless Earbuds SKU-094,Electronics,93.05
+SKU-095,Laptop SKU-095,Electronics,468.72
+SKU-096,Hoodie SKU-096,Clothing,289.33
+SKU-097,Jeans SKU-097,Clothing,134.54
+SKU-098,Jeans SKU-098,Clothing,168.05
+SKU-099,Smartphone SKU-099,Electronics,354.22
+SKU-100,Serum SKU-100,Beauty,406.59
+SKU-101,Coffee Maker SKU-101,Home & Kitchen,434.87
+SKU-102,Shampoo SKU-102,Beauty,260.56
+SKU-103,Smartwatch SKU-103,Electronics,401.16
+SKU-104,Smartwatch SKU-104,Electronics,444.44
+SKU-105,Dumbbells SKU-105,Sports,56.05
+SKU-106,Air Fryer SKU-106,Home & Kitchen,85.97
+SKU-107,Serum SKU-107,Beauty,431.6
+SKU-108,Smartwatch SKU-108,Electronics,29.03
+SKU-109,Vacuum Cleaner SKU-109,Home & Kitchen,170.06
+SKU-110,Shampoo SKU-110,Beauty,115.75
+SKU-111,Shampoo SKU-111,Beauty,422.59
+SKU-112,Water Bottle SKU-112,Sports,322.34
+SKU-113,Backpack SKU-113,Sports,485.07
+SKU-114,Hoodie SKU-114,Clothing,399.64
+SKU-115,Vacuum Cleaner SKU-115,Home & Kitchen,374.58
+SKU-116,Sneakers SKU-116,Clothing,100.32
+SKU-117,Smartwatch SKU-117,Electronics,210.39
+SKU-118,Jeans SKU-118,Clothing,86.65
+SKU-119,T-Shirt SKU-119,Clothing,333.5
+SKU-120,Moisturizer SKU-120,Beauty,477.88
+SKU-121,Face Wash SKU-121,Beauty,215.6
+SKU-122,Dumbbells SKU-122,Sports,184.43
+SKU-123,Moisturizer SKU-123,Beauty,177.52
+SKU-124,Backpack SKU-124,Sports,56.14
+SKU-125,Backpack SKU-125,Sports,242.35
+SKU-126,Jeans SKU-126,Clothing,250.89
+SKU-127,Yoga Mat SKU-127,Sports,237.69
+SKU-128,Serum SKU-128,Beauty,311.77
+SKU-129,Shampoo SKU-129,Beauty,32.2
+SKU-130,Jeans SKU-130,Clothing,467.38
+SKU-131,Bluetooth Speaker SKU-131,Electronics,345.14
+SKU-132,T-Shirt SKU-132,Clothing,434.93
+SKU-133,Vacuum Cleaner SKU-133,Home & Kitchen,291.98
+SKU-134,Hoodie SKU-134,Clothing,325.21
+SKU-135,Bluetooth Speaker SKU-135,Electronics,277.35
+SKU-136,Shampoo SKU-136,Beauty,199.19
+SKU-137,Laptop SKU-137,Electronics,111.28
+SKU-138,Face Wash SKU-138,Beauty,115.15
+SKU-139,Sneakers SKU-139,Clothing,56.28
+SKU-140,Air Fryer SKU-140,Home & Kitchen,331.3
+SKU-141,Serum SKU-141,Beauty,343.99
+SKU-142,Hoodie SKU-142,Clothing,148.11
+SKU-143,Dumbbells SKU-143,Sports,351.4
+SKU-144,Sunscreen SKU-144,Beauty,439.96
+SKU-145,Yoga Mat SKU-145,Sports,403.71
+SKU-146,Smartwatch SKU-146,Electronics,96.95
+SKU-147,Wireless Earbuds SKU-147,Electronics,495.35
+SKU-148,Dumbbells SKU-148,Sports,132.51
+SKU-149,Shampoo SKU-149,Beauty,220.21
+SKU-150,Moisturizer SKU-150,Beauty,126.74
+SKU-151,Smartphone SKU-151,Electronics,257.57
+SKU-152,Bluetooth Speaker SKU-152,Electronics,448.81
+SKU-153,Smartwatch SKU-153,Electronics,15.31
+SKU-154,Wireless Earbuds SKU-154,Electronics,54.73
+SKU-155,Running Shoes SKU-155,Sports,290.98
+SKU-156,Face Wash SKU-156,Beauty,153.67
+SKU-157,Smartwatch SKU-157,Electronics,339.53
+SKU-158,Backpack SKU-158,Sports,397.87
+SKU-159,Bluetooth Speaker SKU-159,Electronics,466.16
+SKU-160,Jeans SKU-160,Clothing,226.35
+SKU-161,Sunscreen SKU-161,Beauty,355.86
+SKU-162,Yoga Mat SKU-162,Sports,383.14
+SKU-163,Yoga Mat SKU-163,Sports,59.55
+SKU-164,Serum SKU-164,Beauty,204.36
+SKU-165,Coffee Maker SKU-165,Home & Kitchen,81.84
+SKU-166,Face Wash SKU-166,Beauty,124.28
+SKU-167,Moisturizer SKU-167,Beauty,441.38
+SKU-168,Smartphone SKU-168,Electronics,300.03
+SKU-169,Running Shoes SKU-169,Sports,50.92
+SKU-170,Shampoo SKU-170,Beauty,283.62
+SKU-171,Coffee Maker SKU-171,Home & Kitchen,454.11
+SKU-172,Toaster SKU-172,Home & Kitchen,15.56
+SKU-173,Dumbbells SKU-173,Sports,373.08
+SKU-174,Moisturizer SKU-174,Beauty,374.66
+SKU-175,Toaster SKU-175,Home & Kitchen,126.38
+SKU-176,Smartwatch SKU-176,Electronics,150.0
+SKU-177,Bluetooth Speaker SKU-177,Electronics,481.98
+SKU-178,Backpack SKU-178,Sports,485.24
+SKU-179,Face Wash SKU-179,Beauty,31.27
+SKU-180,Sunscreen SKU-180,Beauty,460.37
+SKU-181,Water Bottle SKU-181,Sports,350.75
+SKU-182,Laptop SKU-182,Electronics,91.45
+SKU-183,Smartphone SKU-183,Electronics,317.5
+SKU-184,Air Fryer SKU-184,Home & Kitchen,458.47
+SKU-185,Jacket SKU-185,Clothing,62.31
+SKU-186,Serum SKU-186,Beauty,102.18
+SKU-187,Jeans SKU-187,Clothing,122.4
+SKU-188,Running Shoes SKU-188,Sports,186.57
+SKU-189,Water Bottle SKU-189,Sports,352.1
+SKU-190,Smartphone SKU-190,Electronics,161.67
+SKU-191,Backpack SKU-191,Sports,345.52
+SKU-192,Face Wash SKU-192,Beauty,456.35
+SKU-193,Serum SKU-193,Beauty,214.15
+SKU-194,Moisturizer SKU-194,Beauty,214.94
+SKU-195,Hoodie SKU-195,Clothing,32.16
+SKU-196,Smartphone SKU-196,Electronics,245.38
+SKU-197,Wireless Earbuds SKU-197,Electronics,301.12
+SKU-198,Wireless Earbuds SKU-198,Electronics,422.64
+SKU-199,Moisturizer SKU-199,Beauty,239.66
+SKU-200,Air Fryer SKU-200,Home & Kitchen,16.7
+SKU-201,Yoga Mat SKU-201,Sports,271.83
+SKU-202,Sunscreen SKU-202,Beauty,282.16
+SKU-203,Face Wash SKU-203,Beauty,472.94
+SKU-204,Hoodie SKU-204,Clothing,131.2
+SKU-205,Smartphone SKU-205,Electronics,477.49
+SKU-206,Shampoo SKU-206,Beauty,122.03
+SKU-207,Laptop SKU-207,Electronics,185.5
+SKU-208,Jeans SKU-208,Clothing,264.95
+SKU-209,Blender SKU-209,Home & Kitchen,160.81
+SKU-210,Smartwatch SKU-210,Electronics,284.86
+SKU-211,Air Fryer SKU-211,Home & Kitchen,299.08
+SKU-212,Face Wash SKU-212,Beauty,323.29
+SKU-213,Blender SKU-213,Home & Kitchen,452.54
+SKU-214,Dumbbells SKU-214,Sports,181.79
+SKU-215,Jeans SKU-215,Clothing,202.2
+SKU-216,Blender SKU-216,Home & Kitchen,453.04
+SKU-217,Yoga Mat SKU-217,Sports,261.85
+SKU-218,Dumbbells SKU-218,Sports,432.56
+SKU-219,Face Wash SKU-219,Beauty,82.07
+SKU-220,Laptop SKU-220,Electronics,386.77
+SKU-221,Backpack SKU-221,Sports,490.22
+SKU-222,Serum SKU-222,Beauty,171.09
+SKU-223,Blender SKU-223,Home & Kitchen,127.67
+SKU-224,Air Fryer SKU-224,Home & Kitchen,235.46
+SKU-225,Vacuum Cleaner SKU-225,Home & Kitchen,99.12
+SKU-226,Wireless Earbuds SKU-226,Electronics,438.42
+SKU-227,Toaster SKU-227,Home & Kitchen,486.82
+SKU-228,Serum SKU-228,Beauty,119.69
+SKU-229,Face Wash SKU-229,Beauty,179.09
+SKU-230,Sneakers SKU-230,Clothing,25.58
+SKU-231,Bluetooth Speaker SKU-231,Electronics,235.78
+SKU-232,Jeans SKU-232,Clothing,73.09
+SKU-233,Sneakers SKU-233,Clothing,167.58
+SKU-234,T-Shirt SKU-234,Clothing,245.76
+SKU-235,Toaster SKU-235,Home & Kitchen,11.27
+SKU-236,Yoga Mat SKU-236,Sports,51.41
+SKU-237,Toaster SKU-237,Home & Kitchen,493.27
+SKU-238,Jacket SKU-238,Clothing,190.77
+SKU-239,Sneakers SKU-239,Clothing,40.55
+SKU-240,Blender SKU-240,Home & Kitchen,359.54
+SKU-241,Vacuum Cleaner SKU-241,Home & Kitchen,62.51
+SKU-242,Hoodie SKU-242,Clothing,204.61
+SKU-243,Bluetooth Speaker SKU-243,Electronics,99.32
+SKU-244,Smartphone SKU-244,Electronics,113.61
+SKU-245,Jacket SKU-245,Clothing,124.28
+SKU-246,Shampoo SKU-246,Beauty,242.25
+SKU-247,Hoodie SKU-247,Clothing,327.92
+SKU-248,Jacket SKU-248,Clothing,273.18
+SKU-249,T-Shirt SKU-249,Clothing,286.58
+SKU-250,T-Shirt SKU-250,Clothing,175.35
+SKU-251,Dumbbells SKU-251,Sports,307.7
+SKU-252,Blender SKU-252,Home & Kitchen,493.39
+SKU-253,Moisturizer SKU-253,Beauty,126.24
+SKU-254,Shampoo SKU-254,Beauty,426.9
+SKU-255,Wireless Earbuds SKU-255,Electronics,267.01
+SKU-256,Shampoo SKU-256,Beauty,498.66
+SKU-257,Jacket SKU-257,Clothing,485.04
+SKU-258,Yoga Mat SKU-258,Sports,250.47
+SKU-259,Air Fryer SKU-259,Home & Kitchen,362.04
+SKU-260,Coffee Maker SKU-260,Home & Kitchen,147.19
+SKU-261,Backpack SKU-261,Sports,101.65
+SKU-262,Water Bottle SKU-262,Sports,107.76
+SKU-263,Yoga Mat SKU-263,Sports,269.62
+SKU-264,Laptop SKU-264,Electronics,386.21
+SKU-265,Sunscreen SKU-265,Beauty,466.69
+SKU-266,Sunscreen SKU-266,Beauty,301.0
+SKU-267,Jeans SKU-267,Clothing,278.82
+SKU-268,Jacket SKU-268,Clothing,108.85
+SKU-269,Jacket SKU-269,Clothing,134.77
+SKU-270,Moisturizer SKU-270,Beauty,382.51
+SKU-271,Blender SKU-271,Home & Kitchen,180.95
+SKU-272,Bluetooth Speaker SKU-272,Electronics,417.0
+SKU-273,Dumbbells SKU-273,Sports,70.91
+SKU-274,Air Fryer SKU-274,Home & Kitchen,110.45
+SKU-275,Blender SKU-275,Home & Kitchen,463.96
+SKU-276,Backpack SKU-276,Sports,78.49
+SKU-277,Bluetooth Speaker SKU-277,Electronics,108.8
+SKU-278,Toaster SKU-278,Home & Kitchen,101.34
+SKU-279,Blender SKU-279,Home & Kitchen,320.54
+SKU-280,Yoga Mat SKU-280,Sports,439.83
+SKU-281,Laptop SKU-281,Electronics,410.13
+SKU-282,Toaster SKU-282,Home & Kitchen,157.68
+SKU-283,Smartphone SKU-283,Electronics,184.13
+SKU-284,Sneakers SKU-284,Clothing,454.17
+SKU-285,Blender SKU-285,Home & Kitchen,221.45
+SKU-286,Blender SKU-286,Home & Kitchen,174.1
+SKU-287,Backpack SKU-287,Sports,252.76
+SKU-288,Vacuum Cleaner SKU-288,Home & Kitchen,498.87
+SKU-289,Smartphone SKU-289,Electronics,356.42
+SKU-290,Air Fryer SKU-290,Home & Kitchen,26.43
+SKU-291,Jeans SKU-291,Clothing,252.05
+SKU-292,T-Shirt SKU-292,Clothing,60.43
+SKU-293,Shampoo SKU-293,Beauty,233.93
+SKU-294,Backpack SKU-294,Sports,274.53
+SKU-295,Shampoo SKU-295,Beauty,363.9
+SKU-296,Hoodie SKU-296,Clothing,324.16
+SKU-297,Vacuum Cleaner SKU-297,Home & Kitchen,275.93
+SKU-298,Blender SKU-298,Home & Kitchen,179.39
+SKU-299,Coffee Maker SKU-299,Home & Kitchen,177.84
+SKU-300,Hoodie SKU-300,Clothing,85.14
+SKU-301,Serum SKU-301,Beauty,309.61
+SKU-302,Water Bottle SKU-302,Sports,466.74
+SKU-303,Running Shoes SKU-303,Sports,397.14
+SKU-304,Serum SKU-304,Beauty,387.91
+SKU-305,T-Shirt SKU-305,Clothing,217.82
+SKU-306,Moisturizer SKU-306,Beauty,463.53
+SKU-307,Bluetooth Speaker SKU-307,Electronics,492.57
+SKU-308,Yoga Mat SKU-308,Sports,172.75
+SKU-309,Toaster SKU-309,Home & Kitchen,195.86
+SKU-310,Moisturizer SKU-310,Beauty,110.73
+SKU-311,Bluetooth Speaker SKU-311,Electronics,305.82
+SKU-312,Vacuum Cleaner SKU-312,Home & Kitchen,273.32
+SKU-313,Coffee Maker SKU-313,Home & Kitchen,238.19
+SKU-314,Coffee Maker SKU-314,Home & Kitchen,460.04
+SKU-315,Blender SKU-315,Home & Kitchen,231.7
+SKU-316,Air Fryer SKU-316,Home & Kitchen,254.2
+SKU-317,Moisturizer SKU-317,Beauty,187.57
+SKU-318,Coffee Maker SKU-318,Home & Kitchen,16.42
+SKU-319,Moisturizer SKU-319,Beauty,97.24
+SKU-320,Yoga Mat SKU-320,Sports,82.84
+SKU-321,Backpack SKU-321,Sports,100.39
+SKU-322,Bluetooth Speaker SKU-322,Electronics,204.69
+SKU-323,Blender SKU-323,Home & Kitchen,401.89
+SKU-324,Moisturizer SKU-324,Beauty,27.91
+SKU-325,Coffee Maker SKU-325,Home & Kitchen,154.08
+SKU-326,Coffee Maker SKU-326,Home & Kitchen,266.95
+SKU-327,Yoga Mat SKU-327,Sports,206.37
+SKU-328,Vacuum Cleaner SKU-328,Home & Kitchen,99.14
+SKU-329,Sunscreen SKU-329,Beauty,192.92
+SKU-330,Hoodie SKU-330,Clothing,325.56
+SKU-331,Yoga Mat SKU-331,Sports,22.44
+SKU-332,Dumbbells SKU-332,Sports,434.83
+SKU-333,Smartphone SKU-333,Electronics,118.77
+SKU-334,Toaster SKU-334,Home & Kitchen,301.57
+SKU-335,Bluetooth Speaker SKU-335,Electronics,97.49
+SKU-336,Smartwatch SKU-336,Electronics,126.71
+SKU-337,Hoodie SKU-337,Clothing,129.15
+SKU-338,Vacuum Cleaner SKU-338,Home & Kitchen,472.76
+SKU-339,Serum SKU-339,Beauty,16.37
+SKU-340,Bluetooth Speaker SKU-340,Electronics,23.0
+SKU-341,Sunscreen SKU-341,Beauty,295.69
+SKU-342,Dumbbells SKU-342,Sports,447.41
+SKU-343,Shampoo SKU-343,Beauty,174.57
+SKU-344,Hoodie SKU-344,Clothing,299.24
+SKU-345,Running Shoes SKU-345,Sports,315.83
+SKU-346,Laptop SKU-346,Electronics,431.92
+SKU-347,Vacuum Cleaner SKU-347,Home & Kitchen,487.53
+SKU-348,Yoga Mat SKU-348,Sports,435.55
+SKU-349,Air Fryer SKU-349,Home & Kitchen,247.54
+SKU-350,Smartphone SKU-350,Electronics,275.4
+SKU-351,Moisturizer SKU-351,Beauty,136.36
+SKU-352,Vacuum Cleaner SKU-352,Home & Kitchen,74.82
+SKU-353,Face Wash SKU-353,Beauty,348.7
+SKU-354,Sunscreen SKU-354,Beauty,413.07
+SKU-355,Serum SKU-355,Beauty,292.49
+SKU-356,T-Shirt SKU-356,Clothing,208.57
+SKU-357,Jacket SKU-357,Clothing,111.15
+SKU-358,Sneakers SKU-358,Clothing,139.21
+SKU-359,Coffee Maker SKU-359,Home & Kitchen,304.25
+SKU-360,Bluetooth Speaker SKU-360,Electronics,95.93
+SKU-361,Moisturizer SKU-361,Beauty,215.2
+SKU-362,Dumbbells SKU-362,Sports,216.8
+SKU-363,Jacket SKU-363,Clothing,479.73
+SKU-364,Wireless Earbuds SKU-364,Electronics,54.27
+SKU-365,Coffee Maker SKU-365,Home & Kitchen,43.44
+SKU-366,Blender SKU-366,Home & Kitchen,184.28
+SKU-367,Wireless Earbuds SKU-367,Electronics,155.59
+SKU-368,Coffee Maker SKU-368,Home & Kitchen,204.36
+SKU-369,Moisturizer SKU-369,Beauty,142.26
+SKU-370,Water Bottle SKU-370,Sports,301.59
+SKU-371,Air Fryer SKU-371,Home & Kitchen,253.22
+SKU-372,Sunscreen SKU-372,Beauty,173.78
+SKU-373,Jeans SKU-373,Clothing,62.23
+SKU-374,Smartphone SKU-374,Electronics,212.27
+SKU-375,Sunscreen SKU-375,Beauty,303.16
+SKU-376,Wireless Earbuds SKU-376,Electronics,411.36
+SKU-377,Shampoo SKU-377,Beauty,350.4
+SKU-378,Jacket SKU-378,Clothing,186.88
+SKU-379,Water Bottle SKU-379,Sports,459.48
+SKU-380,Moisturizer SKU-380,Beauty,475.62
+SKU-381,Smartwatch SKU-381,Electronics,275.53
+SKU-382,Toaster SKU-382,Home & Kitchen,381.93
+SKU-383,Moisturizer SKU-383,Beauty,452.65
+SKU-384,Water Bottle SKU-384,Sports,493.96
+SKU-385,Serum SKU-385,Beauty,29.32
+SKU-386,T-Shirt SKU-386,Clothing,98.48
+SKU-387,Serum SKU-387,Beauty,163.3
+SKU-388,Moisturizer SKU-388,Beauty,104.37
+SKU-389,Hoodie SKU-389,Clothing,472.69
+SKU-390,Jacket SKU-390,Clothing,423.83
+SKU-391,Hoodie SKU-391,Clothing,416.17
+SKU-392,Wireless Earbuds SKU-392,Electronics,284.73
+SKU-393,Serum SKU-393,Beauty,443.65
+SKU-394,Coffee Maker SKU-394,Home & Kitchen,365.14
+SKU-395,Yoga Mat SKU-395,Sports,273.82
+SKU-396,Bluetooth Speaker SKU-396,Electronics,316.69
+SKU-397,Serum SKU-397,Beauty,439.57
+SKU-398,Hoodie SKU-398,Clothing,436.35
+SKU-399,Toaster SKU-399,Home & Kitchen,269.18
+SKU-400,Blender SKU-400,Home & Kitchen,498.99
+SKU-401,Backpack SKU-401,Sports,385.92
+SKU-402,Face Wash SKU-402,Beauty,245.09
+SKU-403,Yoga Mat SKU-403,Sports,386.45
+SKU-404,Smartwatch SKU-404,Electronics,371.42
+SKU-405,Wireless Earbuds SKU-405,Electronics,238.98
+SKU-406,Jacket SKU-406,Clothing,360.62
+SKU-407,Moisturizer SKU-407,Beauty,145.86
+SKU-408,Moisturizer SKU-408,Beauty,63.64
+SKU-409,Smartwatch SKU-409,Electronics,116.94
+SKU-410,Sneakers SKU-410,Clothing,395.31
+SKU-411,Vacuum Cleaner SKU-411,Home & Kitchen,214.61
+SKU-412,Toaster SKU-412,Home & Kitchen,494.7
+SKU-413,Running Shoes SKU-413,Sports,123.52
+SKU-414,Backpack SKU-414,Sports,328.33
+SKU-415,Sunscreen SKU-415,Beauty,261.22
+SKU-416,Hoodie SKU-416,Clothing,96.5
+SKU-417,T-Shirt SKU-417,Clothing,101.35
+SKU-418,Toaster SKU-418,Home & Kitchen,38.34
+SKU-419,Smartphone SKU-419,Electronics,464.6
+SKU-420,T-Shirt SKU-420,Clothing,95.21
+SKU-421,Hoodie SKU-421,Clothing,381.54
+SKU-422,Wireless Earbuds SKU-422,Electronics,409.76
+SKU-423,Face Wash SKU-423,Beauty,273.12
+SKU-424,Smartwatch SKU-424,Electronics,294.24
+SKU-425,Hoodie SKU-425,Clothing,439.96
+SKU-426,Blender SKU-426,Home & Kitchen,73.46
+SKU-427,Wireless Earbuds SKU-427,Electronics,478.27
+SKU-428,Dumbbells SKU-428,Sports,406.66
+SKU-429,Bluetooth Speaker SKU-429,Electronics,370.25
+SKU-430,Jacket SKU-430,Clothing,192.62
+SKU-431,Toaster SKU-431,Home & Kitchen,33.9
+SKU-432,Sneakers SKU-432,Clothing,117.89
+SKU-433,Shampoo SKU-433,Beauty,47.3
+SKU-434,Laptop SKU-434,Electronics,252.62
+SKU-435,Sunscreen SKU-435,Beauty,414.09
+SKU-436,Hoodie SKU-436,Clothing,433.6
+SKU-437,Wireless Earbuds SKU-437,Electronics,435.4
+SKU-438,Yoga Mat SKU-438,Sports,87.1
+SKU-439,Bluetooth Speaker SKU-439,Electronics,420.14
+SKU-440,Bluetooth Speaker SKU-440,Electronics,343.27
+SKU-441,Vacuum Cleaner SKU-441,Home & Kitchen,87.72
+SKU-442,Toaster SKU-442,Home & Kitchen,437.2
+SKU-443,Coffee Maker SKU-443,Home & Kitchen,73.15
+SKU-444,Toaster SKU-444,Home & Kitchen,374.32
+SKU-445,Jacket SKU-445,Clothing,282.53
+SKU-446,Face Wash SKU-446,Beauty,136.76
+SKU-447,Sneakers SKU-447,Clothing,312.29
+SKU-448,Smartphone SKU-448,Electronics,319.59
+SKU-449,Jacket SKU-449,Clothing,14.45
+SKU-450,Sunscreen SKU-450,Beauty,72.94
+SKU-451,Coffee Maker SKU-451,Home & Kitchen,221.8
+SKU-452,Jacket SKU-452,Clothing,319.98
+SKU-453,Face Wash SKU-453,Beauty,396.52
+SKU-454,Running Shoes SKU-454,Sports,43.24
+SKU-455,Air Fryer SKU-455,Home & Kitchen,387.78
+SKU-456,Laptop SKU-456,Electronics,242.05
+SKU-457,Hoodie SKU-457,Clothing,427.68
+SKU-458,Shampoo SKU-458,Beauty,377.33
+SKU-459,Vacuum Cleaner SKU-459,Home & Kitchen,381.55
+SKU-460,Sunscreen SKU-460,Beauty,412.54
+SKU-461,Blender SKU-461,Home & Kitchen,344.81
+SKU-462,Jeans SKU-462,Clothing,144.08
+SKU-463,Shampoo SKU-463,Beauty,218.83
+SKU-464,Moisturizer SKU-464,Beauty,90.18
+SKU-465,Face Wash SKU-465,Beauty,156.2
+SKU-466,Jacket SKU-466,Clothing,330.71
+SKU-467,Blender SKU-467,Home & Kitchen,475.92
+SKU-468,Running Shoes SKU-468,Sports,368.32
+SKU-469,Sunscreen SKU-469,Beauty,482.62
+SKU-470,Air Fryer SKU-470,Home & Kitchen,226.73
+SKU-471,Air Fryer SKU-471,Home & Kitchen,167.16
+SKU-472,Sneakers SKU-472,Clothing,108.18
+SKU-473,Smartphone SKU-473,Electronics,360.31
+SKU-474,Jacket SKU-474,Clothing,241.87
+SKU-475,Yoga Mat SKU-475,Sports,435.63
+SKU-476,Sunscreen SKU-476,Beauty,423.94
+SKU-477,Water Bottle SKU-477,Sports,400.43
+SKU-478,Backpack SKU-478,Sports,456.8
+SKU-479,Hoodie SKU-479,Clothing,100.87
+SKU-480,Smartphone SKU-480,Electronics,307.58
+SKU-481,Running Shoes SKU-481,Sports,283.62
+SKU-482,Smartwatch SKU-482,Electronics,41.46
+SKU-483,Face Wash SKU-483,Beauty,299.23
+SKU-484,Toaster SKU-484,Home & Kitchen,83.29
+SKU-485,Serum SKU-485,Beauty,343.42
+SKU-486,Hoodie SKU-486,Clothing,350.54
+SKU-487,Smartwatch SKU-487,Electronics,392.13
+SKU-488,Blender SKU-488,Home & Kitchen,61.42
+SKU-489,Smartwatch SKU-489,Electronics,493.46
+SKU-490,Running Shoes SKU-490,Sports,179.55
+SKU-491,Jacket SKU-491,Clothing,45.48
+SKU-492,Smartphone SKU-492,Electronics,442.44
+SKU-493,Bluetooth Speaker SKU-493,Electronics,48.5
+SKU-494,Jeans SKU-494,Clothing,347.84
+SKU-495,Jeans SKU-495,Clothing,30.18
+SKU-496,Yoga Mat SKU-496,Sports,476.26
+SKU-497,Sunscreen SKU-497,Beauty,449.15
+SKU-498,Smartphone SKU-498,Electronics,35.47
+SKU-499,Laptop SKU-499,Electronics,468.25
+SKU-500,Jacket SKU-500,Clothing,402.85

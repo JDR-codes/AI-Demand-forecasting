@@ -1,0 +1,4 @@
+date,sku,units,revenue,day_of_week,month,quarter,day_of_week_sin,month_cos,promo_flag,lag_7d,rolling_mean_30,rolling_std_14,price_delta_pct
+2026-08-01,SKU01,0.0,0.0,5,8,3,-0.9749279121818236,-0.5000000000000004,0,,,,0.0
+2026-08-02,SKU01,0.5,0.5,6,8,3,-0.7818314824680299,-0.5000000000000004,1,,,,inf
+2026-08-03,SKU02,1.0,1.0,0,8,3,0.0,-0.5000000000000004,0,,,,100.0

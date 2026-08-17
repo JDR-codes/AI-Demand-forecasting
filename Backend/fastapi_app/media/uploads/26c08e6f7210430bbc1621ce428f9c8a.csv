@@ -1,0 +1,33 @@
+supplier,sku,price,lead_time,min_order
+Zenith Wholesale,P0001,24.51,3,50
+Zenith Wholesale,P0002,32.09,12,10
+Apex Supply Corp,P0002,29.56,7,20
+Prime Distributors,P0003,53.84,12,100
+Apex Supply Corp,P0003,58.19,11,100
+Global Logistics Inc,P0004,32.74,6,10
+Apex Supply Corp,P0004,32.86,9,50
+Zenith Wholesale,P0005,33.78,13,10
+Apex Supply Corp,P0005,37.94,2,20
+Nexus Goods Ltd,P0006,30.87,13,20
+Apex Supply Corp,P0007,24.29,10,5
+Prime Distributors,P0007,27.56,9,10
+Prime Distributors,P0008,47.53,5,20
+Apex Supply Corp,P0009,56.81,2,5
+Global Logistics Inc,P0010,51.22,5,5
+Prime Distributors,P0010,40.41,5,20
+Apex Supply Corp,P0011,68.89,10,10
+Apex Supply Corp,P0012,62.08,11,5
+Zenith Wholesale,P0012,72.62,9,100
+Nexus Goods Ltd,P0013,31.94,6,50
+Apex Supply Corp,P0013,27.92,11,100
+Apex Supply Corp,P0014,92.07,5,10
+Global Logistics Inc,P0015,43.37,6,20
+Global Logistics Inc,P0016,49.18,12,50
+Nexus Goods Ltd,P0016,50.13,2,20
+Prime Distributors,P0017,42.58,4,100
+Apex Supply Corp,P0018,50.24,4,10
+Zenith Wholesale,P0018,51.01,10,10
+Nexus Goods Ltd,P0019,64.52,7,20
+Prime Distributors,P0019,53.01,3,50
+Nexus Goods Ltd,P0020,66.28,14,5
+Zenith Wholesale,P0020,68.77,9,50
