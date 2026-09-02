@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from datetime import datetime, timedelta
 
 from fastapi_app.models.model_registry_model import ModelRegistry
-from fastapi_app.models.training_configuration_model import TrainingConfiguration
+from fastapi_app.models.forecast_configuration_model import ForecastConfiguration
 from fastapi_app.schemas.forecast_schema import ModelConfigResponse, ModelConfigUpdate
 from fastapi_app.services.forecast.model_registry_service import ModelRegistryService
 
@@ -22,9 +22,9 @@ class ModelConfigService:
         if not model:
             return None
         
-        # Get training config
-        config = db.query(TrainingConfiguration).filter(
-            TrainingConfiguration.model_registry_id == model_id
+        # Get forecast config
+        config = db.query(ForecastConfiguration).filter(
+            ForecastConfiguration.model_registry_id == model_id
         ).first()
         
         # Build response
@@ -34,14 +34,14 @@ class ModelConfigService:
             "model_type": model.model_type,
             "forecast_horizon": config.forecast_horizon if config else 30,
             "seasonality": config.seasonality if config else True,
-            "validation_split": config.validation_split if config else 0.2,
+            "validation_split": 0.2,  # Segregated retraining parameter
             "default_dataset": config.default_dataset if config else "Latest Processed Data",
             "default_region": config.default_region if config else None,
             "default_sku": config.default_sku if config else None,
             "default_warehouse": config.default_warehouse if config else None,
-            "epochs": config.epochs if config else 100,
-            "batch_size": config.batch_size if config else 16,
-            "learning_rate": config.learning_rate if config else 0.001,
+            "epochs": 100,  # Segregated retraining parameter
+            "batch_size": 16,  # Segregated retraining parameter
+            "learning_rate": 0.001,  # Segregated retraining parameter
             "is_default": model.is_default,
             "last_trained": model.last_trained.isoformat() if model.last_trained else None,
             "accuracy": model.best_accuracy,
@@ -66,26 +66,21 @@ class ModelConfigService:
         if not model:
             return None
         
-        # Get or create training config
-        config = db.query(TrainingConfiguration).filter(
-            TrainingConfiguration.model_registry_id == model_id
+        # Get or create forecast config
+        config = db.query(ForecastConfiguration).filter(
+            ForecastConfiguration.model_registry_id == model_id
         ).first()
         
         if not config:
-            config = TrainingConfiguration(
+            config = ForecastConfiguration(
                 model_registry_id=model_id,
                 forecast_horizon=30,
                 seasonality=True,
-                validation_split=0.2,
-                epochs=100,
-                batch_size=16,
-                learning_rate=0.001,
-                frequency="daily",
-                enabled=True
+                default_dataset="Latest Processed Data"
             )
             db.add(config)
         
-        # Update config
+        # Update config fields that exist on ForecastConfiguration
         update_data = update.dict(exclude_unset=True)
         for key, value in update_data.items():
             if hasattr(config, key):

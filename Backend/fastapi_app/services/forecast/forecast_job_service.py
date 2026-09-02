@@ -26,12 +26,11 @@ class ForecastJobService:
     
     # Step definitions with enum values
     JOB_STEPS = [
-        (1, ForecastJobStep.LOADING_DATA, "Loading Dataset"),
-        (2, ForecastJobStep.VALIDATING_DATA, "Validating Dataset"),
-        (3, ForecastJobStep.LOADING_MODEL, "Loading Model"),
-        (4, ForecastJobStep.RUNNING_MODEL, "Running Model"),
-        (5, ForecastJobStep.GENERATING_OUTPUT, "Generating Output"),
-        (6, ForecastJobStep.SAVING_RESULTS, "Saving Results"),
+        (1, ForecastJobStep.FETCHING_DATA, "Fetching processed data"),
+        (2, ForecastJobStep.LOADING_CONFIG, "Loading model configuration"),
+        (3, ForecastJobStep.RUNNING_MODEL, "Running model"),
+        (4, ForecastJobStep.GENERATING_OUTPUT, "Generating forecast output"),
+        (5, ForecastJobStep.SAVING_RESULTS, "Saving forecast results"),
     ]
     
     @staticmethod

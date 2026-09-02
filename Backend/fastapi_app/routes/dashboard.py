@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
-from fastapi_app.core.dependencies import get_current_user
+from fastapi_app.core.dependencies import get_current_user, require_permission_dep
 from fastapi_app.db.session import get_db
 from fastapi_app.models.auth_model import User
 from fastapi_app.services.dashboard.dashboard_service import DashboardService
@@ -23,7 +23,7 @@ router = APIRouter(prefix="/api/dashboard", tags=["Dashboard"])
 @cache_response(expire_seconds=300)
 def get_summary(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission_dep("dashboard:read")),
 ):
     """
     GET /api/v1/dashboard/summary
@@ -44,7 +44,7 @@ def get_summary(
 def get_demand_trend(
     days: int = Query(30, ge=1, le=365, description="Number of days to analyze"),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission_dep("dashboard:read")),
 ):
     """
     GET /api/v1/dashboard/demand-trend
@@ -66,7 +66,7 @@ def get_demand_trend(
 @cache_response(expire_seconds=300)
 def get_regional_forecast(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission_dep("dashboard:read")),
 ):
     """
     GET /api/v1/dashboard/regional-forecast
@@ -84,7 +84,7 @@ def get_regional_forecast(
 @cache_response(expire_seconds=300)
 def get_warehouse_distribution(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission_dep("dashboard:read")),
 ):
     """
     GET /api/v1/dashboard/warehouse-distribution
@@ -103,7 +103,7 @@ def get_warehouse_distribution(
 @cache_response(expire_seconds=300)
 def get_ai_insights(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission_dep("dashboard:read")),
 ):
     """
     GET /api/v1/dashboard/ai-insights
@@ -123,7 +123,7 @@ def get_ai_insights(
 def get_live_alerts(
     limit: int = Query(10, ge=1, le=100, description="Maximum number of alerts to return"),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission_dep("dashboard:read")),
 ):
     """
     GET /api/v1/dashboard/live-alerts
@@ -145,7 +145,7 @@ def get_live_alerts(
 def get_top_skus(
     limit: int = Query(10, ge=1, le=50, description="Maximum number of SKUs to return"),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission_dep("dashboard:read")),
 ):
     """
     GET /api/v1/dashboard/top-skus
@@ -169,7 +169,7 @@ def get_top_skus(
 def get_dashboard_trends(
     days: int = Query(30, ge=1, le=365),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission_dep("dashboard:read")),
 ):
     """Get dashboard trend data for charts."""
     return DashboardService.get_dashboard_trends(db, days)
@@ -179,7 +179,7 @@ def get_dashboard_trends(
 @cache_response(expire_seconds=300)
 def get_dashboard_cards(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission_dep("dashboard:read")),
 ):
     """Get dashboard cards data."""
     return DashboardService.get_dashboard_cards(db)

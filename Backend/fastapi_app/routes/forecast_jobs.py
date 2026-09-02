@@ -3,7 +3,7 @@ from fastapi import APIRouter, HTTPException, Depends, Query, BackgroundTasks
 from typing import List, Optional
 from sqlalchemy.orm import Session
 
-from fastapi_app.core.dependencies import get_current_user
+from fastapi_app.core.dependencies import get_current_user, require_permission_dep
 from fastapi_app.db.session import get_db
 from fastapi_app.models.auth_model import User
 from fastapi_app.schemas.forecast_schema import (
@@ -12,7 +12,8 @@ from fastapi_app.schemas.forecast_schema import (
     ForecastJobStepResponse,
     ForecastResultResponse,
     ForecastChartData,
-    ForecastSummary
+    ForecastSummary,
+    PaginatedForecastTableResponse
 )
 from fastapi_app.services.forecast.forecast_job_service import ForecastJobService
 from fastapi_app.services.forecast.forecast_execution_service import ForecastExecutionService
@@ -30,7 +31,7 @@ router = APIRouter(prefix="/api/forecast/jobs", tags=["Forecast Jobs"])
 def create_forecast_job(
     config: ForecastJobCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_permission_dep("forecast:run"))
 ):
     """Create a new forecast job."""
     job = ForecastJobService.create_job(db, config, current_user.id)
@@ -43,7 +44,7 @@ def list_forecast_jobs(
     limit: int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_permission_dep("forecast:read"))
 ):
     """List forecast jobs with optional filtering."""
     return ForecastJobService.get_jobs(db, status, limit, offset)
@@ -53,7 +54,7 @@ def list_forecast_jobs(
 def get_forecast_job(
     job_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_permission_dep("forecast:read"))
 ):
     """Get a specific forecast job with steps and results."""
     job = ForecastJobService.get_job(db, job_id)
@@ -66,7 +67,7 @@ def get_forecast_job(
 def delete_forecast_job(
     job_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_permission_dep("forecast:delete"))
 ):
     """Delete a forecast job (only if not running)."""
     job = ForecastJobService.get_job(db, job_id)
@@ -89,7 +90,7 @@ def delete_forecast_job(
 def get_forecast_job_steps(
     job_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_permission_dep("forecast:read"))
 ):
     """Get steps for a forecast job."""
     job = ForecastJobService.get_job(db, job_id)
@@ -107,7 +108,7 @@ def start_forecast_job(
     job_id: str,
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_permission_dep("forecast:run"))
 ):
     """Start a forecast job."""
     job = ForecastJobService.get_job(db, job_id)
@@ -128,7 +129,7 @@ def start_forecast_job(
 def pause_forecast_job(
     job_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_permission_dep("forecast:run"))
 ):
     """Pause a running forecast job."""
     if not ForecastExecutionService.pause_job(db, job_id):
@@ -140,7 +141,7 @@ def pause_forecast_job(
 def resume_forecast_job(
     job_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_permission_dep("forecast:run"))
 ):
     """Resume a paused forecast job."""
     if not ForecastExecutionService.resume_job(db, job_id):
@@ -152,7 +153,7 @@ def resume_forecast_job(
 def cancel_forecast_job(
     job_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_permission_dep("forecast:run"))
 ):
     """Cancel a forecast job."""
     if not ForecastExecutionService.cancel_job(db, job_id):
@@ -164,7 +165,7 @@ def cancel_forecast_job(
 def retry_forecast_job(
     job_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_permission_dep("forecast:run"))
 ):
     """Retry a failed forecast job."""
     job = ForecastExecutionService.retry_job(db, job_id)
@@ -181,7 +182,7 @@ def retry_forecast_job(
 def get_forecast_live_status(
     job_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_permission_dep("forecast:read"))
 ):
     """Get live status for UI."""
     status = ForecastExecutionService.get_live_status(db, job_id)
@@ -198,7 +199,7 @@ def get_forecast_live_status(
 def get_forecast_results(
     job_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_permission_dep("forecast:read"))
 ):
     """Get forecast results with historical/forecast separation."""
     chart_data = ForecastChartService.get_chart_data(db, job_id)
@@ -211,7 +212,7 @@ def get_forecast_results(
 def get_forecast_summary(
     job_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_permission_dep("forecast:read"))
 ):
     """Get summary statistics."""
     summary = ForecastChartService.get_summary(db, job_id)
@@ -224,7 +225,7 @@ def get_forecast_summary(
 def get_forecast_chart(
     job_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_permission_dep("forecast:read"))
 ):
     """Get chart data for the forecast."""
     data = ForecastChartService.get_chart_data(db, job_id)
@@ -238,10 +239,50 @@ def get_forecast_peaks(
     job_id: str,
     top_n: int = Query(5, ge=1, le=10),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_permission_dep("forecast:read"))
 ):
     """Get peak demand days."""
     peaks = ForecastChartService.get_peaks(db, job_id, top_n)
     if "error" in peaks:
         raise HTTPException(status_code=404, detail=peaks["error"])
     return peaks
+
+
+@router.get("/{job_id}/results/table", response_model=PaginatedForecastTableResponse)
+def get_forecast_results_table(
+    job_id: str,
+    limit: int = Query(20, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    sku: Optional[str] = None,
+    warehouse: Optional[str] = None,
+    is_forecast: Optional[bool] = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_permission_dep("forecast:read"))
+):
+    """Get forecast results in a paginated, filterable tabular list."""
+    from fastapi_app.models.forecast_job_model import ForecastJob, ForecastResult
+    
+    job = ForecastJobService.get_job(db, job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+        
+    query = db.query(ForecastResult).filter(
+        ForecastResult.forecast_job_id == job.id
+    )
+    
+    if sku:
+        query = query.filter(ForecastResult.sku == sku)
+    if warehouse:
+        query = query.filter(ForecastResult.warehouse == warehouse)
+    if is_forecast is not None:
+        query = query.filter(ForecastResult.is_forecast == is_forecast)
+        
+    total = query.count()
+    results = query.order_by(ForecastResult.forecast_date).offset(offset).limit(limit).all()
+    
+    return {
+        "results": results,
+        "total": total,
+        "limit": limit,
+        "offset": offset
+    }

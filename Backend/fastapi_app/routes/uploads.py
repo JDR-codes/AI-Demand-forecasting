@@ -9,7 +9,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-from fastapi_app.core.dependencies import get_current_user
+from fastapi_app.core.dependencies import get_current_user, require_permission_dep
 from fastapi_app.db.session import get_db
 from fastapi_app.models.auth_model import User
 from fastapi_app.schemas.upload_schema import UploadOut, UploadPreviewOut
@@ -72,7 +72,7 @@ async def upload_file(
     file: UploadFile = File(...),
     data_category: str = Form("sales", description="Data category for the upload"),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission_dep("data_sources:write")),
 ):
     """Upload a single file."""
     if not file.filename:
@@ -113,7 +113,7 @@ async def upload_multiple_files(
     file_paths: Optional[str] = Form(None),
     data_category: str = Form("sales", description="Data category for uploads"),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission_dep("data_sources:write")),
 ):
     """Upload multiple files via multipart file binary uploads or file path strings."""
     logger.info(f"Multiple uploads endpoint hit. files={files}, file_paths={file_paths}")
@@ -251,7 +251,7 @@ def list_uploads(
     limit: int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission_dep("data_sources:read")),
 ):
     """List uploads with optional filtering."""
     uploads = get_uploads(db, status, data_category, limit, offset)
@@ -261,7 +261,7 @@ def list_uploads(
 @router.get("/stats")
 def get_upload_stats_endpoint(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission_dep("data_sources:read")),
 ):
     """Get upload statistics."""
     return get_upload_stats(db)
@@ -275,7 +275,7 @@ def get_upload_stats_endpoint(
 def get_upload_endpoint(
     upload_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission_dep("data_sources:read")),
 ):
     upload = get_upload(db, upload_id)
     if upload is None:
@@ -290,7 +290,7 @@ def get_upload_endpoint(
 def delete_upload_endpoint(
     upload_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission_dep("data_sources:delete")),
 ):
     if not delete_upload(db, upload_id):
         raise HTTPException(
@@ -309,7 +309,7 @@ def preview_upload(
     upload_id: int,
     rows: int = Query(20, ge=1, le=100),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission_dep("data_sources:read")),
 ):
     """Preview upload data."""
     preview_data = get_upload_preview(db, upload_id, rows)

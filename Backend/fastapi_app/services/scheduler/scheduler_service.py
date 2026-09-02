@@ -129,6 +129,9 @@ class SchedulerService:
             # Also restore legacy sync schedules
             self.schedule_all_syncs()
 
+            # Restore retraining schedules
+            self.schedule_all_trainings()
+
         except Exception as e:
             logger.error(f"Error restoring schedules: {str(e)}")
         finally:
@@ -149,13 +152,13 @@ class SchedulerService:
 
         # Get data sources
         if schedule.scope == "all":
-            sources = db.query(DataSource).filter(DataSource.status == "active").all()
+            sources = db.query(DataSource).filter(DataSource.is_enabled == True).all()
         else:
             if not schedule.data_source_ids:
                 return False
             sources = db.query(DataSource).filter(
                 DataSource.id.in_(schedule.data_source_ids),
-                DataSource.status == "active"
+                DataSource.is_enabled == True
             ).all()
 
         if not sources:
@@ -479,24 +482,188 @@ class SchedulerService:
     # ==========================================================================
 
     def schedule_training(self, config_id: int, frequency: str, cron_expression: str = None):
-        """[DISABLED] Scheduled training is disabled. Scheduler only handles sync."""
-        logger.info(f"schedule_training called but disabled. Config ID: {config_id}")
-        return
+        """Schedule a recurring retraining job."""
+        if frequency == "manual":
+            self.remove_training(config_id)
+            return
+            
+        trigger = self._parse_frequency(frequency, cron_expression)
+        if trigger:
+            job_id = f"retrain_{config_id}"
+            
+            # Remove existing job if any
+            if job_id in self.running_tasks:
+                try:
+                    self.scheduler.remove_job(job_id)
+                except Exception:
+                    pass
+                del self.running_tasks[job_id]
+                
+            self.scheduler.add_job(
+                self._training_job,
+                trigger=trigger,
+                id=job_id,
+                args=[config_id],
+                replace_existing=True,
+                max_instances=1
+            )
+            self.running_tasks[job_id] = config_id
+            logger.info(f"Scheduled retraining job {job_id} with frequency {frequency}")
 
     async def _training_job(self, config_id: int):
-        """[DISABLED] Scheduled training is disabled. Scheduler only handles sync."""
-        logger.info(f"_training_job called but disabled. Config ID: {config_id}")
-        return
+        """Execute scheduled retraining job."""
+        from fastapi_app.services.forecast.training_config_service import TrainingConfigService
+        from fastapi_app.services.forecast.model_registry_service import ModelRegistryService
+        from fastapi_app.services.forecast.training_service import TrainingService
+        from fastapi_app.schemas.forecast_schema import TrainingJobCreate
+        from fastapi_app.tasks.celery_tasks import run_training_job_task
+        
+        logger.info(f"Starting scheduled training job for configuration {config_id}")
+        db = SessionLocal()
+        try:
+            config = TrainingConfigService.get_config(db, config_id)
+            if not config or not config.enabled:
+                logger.warning(f"Retraining config {config_id} is disabled or deleted. Skipping run.")
+                return
+                
+            model = ModelRegistryService.get_model(db, config.model_registry_id)
+            if not model:
+                logger.warning(f"Model {config.model_registry_id} not found in registry. Skipping run.")
+                return
+                
+            # Find latest completed processed dataset
+            from fastapi_app.models.processing_job_model import ProcessedDataset, ProcessingJob
+            latest_processed = db.query(ProcessedDataset).join(
+                ProcessingJob, ProcessedDataset.processing_job_id == ProcessingJob.id
+            ).filter(
+                ProcessingJob.status == "completed"
+            ).order_by(ProcessedDataset.created_at.desc()).first()
+            
+            if not latest_processed:
+                logger.warning(f"No completed processed dataset found to run scheduled retraining for model {config.model_registry_id}")
+                return
+                
+            # Create training job
+            job_create = TrainingJobCreate(
+                model_type=model.model_type,
+                model_registry_id=config.model_registry_id,
+                processing_job_id=str(latest_processed.processing_job_id),
+                epochs=config.epochs or 20,
+                batch_size=config.batch_size or 16,
+                learning_rate=config.learning_rate or 0.001,
+                configuration={}
+            )
+            
+            job = TrainingService.create_job(db, job_create, created_by=None)
+            
+            # Trigger Celery
+            run_training_job_task.delay(job.job_id)
+            logger.info(f"Created training job {job.job_id} for scheduled retraining config {config_id}")
+        except Exception as e:
+            logger.error(f"Error executing scheduled retraining config {config_id}: {str(e)}")
+        finally:
+            db.close()
 
     def schedule_all_trainings(self):
-        """[DISABLED] Scheduled training is disabled. Scheduler only handles sync."""
-        logger.info("schedule_all_trainings called but disabled.")
-        return
+        """Schedule retraining for all active configurations."""
+        from fastapi_app.models.training_configuration_model import TrainingConfiguration
+        db = SessionLocal()
+        try:
+            configs = db.query(TrainingConfiguration).filter(
+                TrainingConfiguration.enabled == True
+            ).all()
+            for config in configs:
+                if config.frequency and config.frequency != "manual":
+                    self.schedule_training(config.id, config.frequency, config.cron_expression)
+        except Exception as e:
+            logger.error(f"Error scheduling all retraining runs: {str(e)}")
+        finally:
+            db.close()
 
     def remove_training(self, config_id: int):
-        """[DISABLED] Scheduled training is disabled. Scheduler only handles sync."""
-        logger.info(f"remove_training called but disabled. Config ID: {config_id}")
-        return
+        """Remove scheduled retraining job."""
+        job_id = f"retrain_{config_id}"
+        if job_id in self.running_tasks:
+            try:
+                self.scheduler.remove_job(job_id)
+            except Exception:
+                pass
+            del self.running_tasks[job_id]
+            logger.info(f"Removed scheduled retraining config {config_id}")
+
+    def schedule_one_shot_retraining(self, model_registry_id: str, run_at: datetime):
+        """Schedule retraining for a specific model registry ID to run only once at run_at."""
+        from apscheduler.triggers.date import DateTrigger
+        
+        # Internal async wrapper that triggers Celery task
+        async def _run_once_job(model_id: str):
+            from fastapi_app.services.forecast.model_registry_service import ModelRegistryService
+            from fastapi_app.services.forecast.training_service import TrainingService
+            from fastapi_app.schemas.forecast_schema import TrainingJobCreate
+            from fastapi_app.tasks.celery_tasks import run_training_job_task
+            
+            logger.info(f"Running one-shot retraining job for model {model_id}")
+            db = SessionLocal()
+            try:
+                model = ModelRegistryService.get_model(db, model_id)
+                if not model:
+                    logger.warning(f"Model {model_id} not found in registry. Skipping one-shot run.")
+                    return
+                    
+                # Find latest completed processed dataset
+                from fastapi_app.models.processing_job_model import ProcessedDataset, ProcessingJob
+                latest_processed = db.query(ProcessedDataset).join(
+                    ProcessingJob, ProcessedDataset.processing_job_id == ProcessingJob.id
+                ).filter(
+                    ProcessingJob.status == "completed"
+                ).order_by(ProcessedDataset.created_at.desc()).first()
+                
+                if not latest_processed:
+                    logger.warning(f"No completed processed dataset found to run one-shot retraining for model {model_id}")
+                    return
+                    
+                # Find configuration defaults if any
+                from fastapi_app.models.training_configuration_model import TrainingConfiguration
+                config = db.query(TrainingConfiguration).filter(
+                    TrainingConfiguration.model_registry_id == model_id
+                ).first()
+                
+                epochs = config.epochs if config else 20
+                batch_size = config.batch_size if config else 16
+                learning_rate = config.learning_rate if config else 0.001
+                
+                # Create training job
+                job_create = TrainingJobCreate(
+                    model_type=model.model_type,
+                    model_registry_id=model_id,
+                    processing_job_id=str(latest_processed.processing_job_id),
+                    epochs=epochs,
+                    batch_size=batch_size,
+                    learning_rate=learning_rate,
+                    configuration={}
+                )
+                
+                job = TrainingService.create_job(db, job_create, created_by=None)
+                
+                # Trigger Celery
+                run_training_job_task.delay(job.job_id)
+                logger.info(f"Created one-shot training job {job.job_id} for model {model_id}")
+            except Exception as e:
+                logger.error(f"Error executing one-shot retraining for model {model_id}: {str(e)}")
+            finally:
+                db.close()
+                
+        job_id = f"retrain_once_{model_registry_id}"
+        
+        # Add date trigger to scheduler
+        self.scheduler.add_job(
+            _run_once_job,
+            trigger=DateTrigger(run_date=run_at),
+            id=job_id,
+            args=[model_registry_id],
+            replace_existing=True
+        )
+        logger.info(f"Scheduled one-shot retraining {job_id} at {run_at}")
 
     # ==========================================================================
     # JOB MANAGEMENT
@@ -577,7 +744,7 @@ class SchedulerService:
         """Execute a scheduled job immediately"""
         job = self.scheduler.get_job(job_id)
         if job:
-            job.modify(next_run_time=datetime.utcnow() + timedelta(seconds=1))
+            job.modify(next_run_time=datetime.now(self.scheduler.timezone) + timedelta(seconds=1))
             logger.info(f"Triggered job {job_id} to run now")
             return True
         return False

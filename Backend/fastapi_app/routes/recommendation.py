@@ -7,7 +7,7 @@ from typing import List, Optional
 from sqlalchemy.orm import Session
 from datetime import datetime
 
-from fastapi_app.core.dependencies import get_current_user
+from fastapi_app.core.dependencies import get_current_user, require_permission_dep
 from fastapi_app.db.session import get_db
 from fastapi_app.models.auth_model import User
 from fastapi_app.models.recommendation_result_model import (
@@ -46,7 +46,7 @@ router = APIRouter(prefix="/api/recommendations", tags=["Recommendations"])
 def generate_recommendations(
     request: GenerateRecommendationsRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_permission_dep("recommendations:run"))
 ):
     """
     Generate recommendations from a completed forecast.
@@ -197,7 +197,7 @@ def generate_recommendations(
 @router.get("/dashboard")
 def get_dashboard(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_permission_dep("recommendations:read"))
 ):
     """Get recommendation dashboard statistics."""
     return RecommendationDashboardService.get_dashboard_stats(db)
@@ -207,7 +207,7 @@ def get_dashboard(
 def get_trend_data(
     days: int = Query(30, ge=1, le=365),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_permission_dep("recommendations:read"))
 ):
     """Get trend data for charts."""
     return RecommendationDashboardService.get_trend_data(db, days)
@@ -221,7 +221,7 @@ def get_trend_data(
 def get_summary(
     filter_type: str = Query("all", description="all, critical, high, medium, reorder, procurement"),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_permission_dep("recommendations:read"))
 ):
     """Get summary for execute dialog."""
     return RecommendationResultService.get_summary_for_filter(db, filter_type)
@@ -244,7 +244,7 @@ def list_recommendations(
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_permission_dep("recommendations:read"))
 ):
     """List recommendations with filters and pagination."""
     return RecommendationResultService.get_filtered_recommendations(
@@ -269,7 +269,7 @@ def get_pending(
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_permission_dep("recommendations:read"))
 ):
     """Get pending recommendations."""
     offset = (page - 1) * limit
@@ -290,7 +290,7 @@ def get_pending(
 def get_executed(
     limit: int = Query(100, ge=1, le=500),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_permission_dep("recommendations:read"))
 ):
     """Get executed recommendations."""
     recs = RecommendationResultService.get_by_status(db, RecommendationResultStatus.EXECUTED, limit)
@@ -301,7 +301,7 @@ def get_executed(
 def get_ignored(
     limit: int = Query(100, ge=1, le=500),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_permission_dep("recommendations:read"))
 ):
     """Get ignored recommendations."""
     recs = RecommendationResultService.get_by_status(db, RecommendationResultStatus.IGNORED, limit)
@@ -319,7 +319,7 @@ def get_history(
     limit: int = Query(100, ge=1, le=500),
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_permission_dep("recommendations:read"))
 ):
     """Get recommendation history."""
     return RecommendationHistoryService.get_history(db, recommendation_id, action, limit, offset)
@@ -329,7 +329,7 @@ def get_history(
 def get_recommendation(
     recommendation_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_permission_dep("recommendations:read"))
 ):
     """Get a specific recommendation with details."""
     rec = RecommendationResultService.get_by_id(db, recommendation_id)
@@ -354,7 +354,7 @@ def execute_recommendation(
     recommendation_id: int,
     request: ExecuteRequest = None,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_permission_dep("recommendations:run"))
 ):
     """Execute a recommendation."""
     notes = request.notes if request else None
@@ -395,7 +395,7 @@ def ignore_recommendation(
     recommendation_id: int,
     request: IgnoreRequest = None,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_permission_dep("recommendations:run"))
 ):
     """Ignore a recommendation."""
     reason = request.reason if request else None
@@ -425,7 +425,7 @@ def ignore_recommendation(
 def execute_all(
     filter_type: str = Query("all", description="all, critical, high, medium, reorder, procurement"),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_permission_dep("recommendations:run"))
 ):
     """Execute all recommendations by filter."""
     ids = RecommendationResultService.get_ids_by_filter(db, filter_type)
@@ -457,7 +457,7 @@ def ignore_all(
     filter_type: str = Query("all", description="all, critical, high, medium, reorder, procurement"),
     reason: Optional[str] = Query(None),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_permission_dep("recommendations:run"))
 ):
     """Ignore all recommendations by filter."""
     ids = RecommendationResultService.get_ids_by_filter(db, filter_type)
@@ -491,7 +491,7 @@ def ignore_all(
 def get_forecast_recommendations(
     forecast_job_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_permission_dep("recommendations:read"))
 ):
     """Get recommendations for a specific forecast."""
     recs = RecommendationResultService.get_by_forecast_job(db, forecast_job_id)

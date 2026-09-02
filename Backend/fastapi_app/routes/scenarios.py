@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks
 from typing import List, Optional
 from sqlalchemy.orm import Session
 
-from fastapi_app.core.dependencies import get_current_user
+from fastapi_app.core.dependencies import get_current_user, require_permission_dep
 from fastapi_app.db.session import get_db
 from fastapi_app.models.auth_model import User
 from fastapi_app.schemas.scenario_schema import (
@@ -48,7 +48,7 @@ def list_scenarios(
     sku: Optional[str] = None,
     sort: str = Query("-created_at"),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission_dep("simulation:read")),
 ):
     """List scenarios with filters and pagination."""
     filter_params = ScenarioFilter(
@@ -67,7 +67,7 @@ def list_scenarios(
 def create_scenario(
     payload: ScenarioCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission_dep("simulation:run")),
 ):
     """Create a new scenario."""
     try:
@@ -84,7 +84,7 @@ def create_scenario(
 def compare_scenarios(
     request: ComparisonRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission_dep("simulation:run")),
 ):
     """Compare multiple scenarios."""
     if len(request.scenario_ids) < 2:
@@ -104,7 +104,7 @@ def compare_scenarios(
 def cancel_simulation_run(
     run_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission_dep("simulation:run")),
 ):
     """Cancel a running simulation."""
     if not ScenarioService.cancel_run(db, run_id):
@@ -116,7 +116,7 @@ def cancel_simulation_run(
 def get_progress(
     run_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission_dep("simulation:read")),
 ):
     """Get simulation progress."""
     progress = ScenarioService.get_progress(db, run_id)
@@ -133,7 +133,7 @@ def get_progress(
 def get_scenario(
     scenario_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission_dep("simulation:read")),
 ):
     """Get a scenario by ID."""
     scenario = ScenarioService.get_scenario_by_id(db, scenario_id)
@@ -147,7 +147,7 @@ def update_scenario(
     scenario_id: int,
     payload: ScenarioUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission_dep("simulation:run")),
 ):
     """Update a scenario."""
     scenario = ScenarioService.update_scenario(db, scenario_id, payload)
@@ -161,7 +161,7 @@ def run_scenario(
     scenario_id: int,
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission_dep("simulation:run")),
 ):
     """Run a scenario simulation asynchronously."""
     try:
@@ -181,7 +181,7 @@ def run_scenario(
 def get_dashboard(
     scenario_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission_dep("simulation:read")),
 ):
     """Get complete dashboard data."""
     dashboard = ScenarioService.get_dashboard(db, scenario_id)
@@ -194,7 +194,7 @@ def get_dashboard(
 def get_forecast_chart(
     scenario_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission_dep("simulation:read")),
 ):
     """Get forecast chart data."""
     chart = ScenarioService.get_forecast_chart(db, scenario_id)
@@ -207,7 +207,7 @@ def get_forecast_chart(
 def get_inventory_chart(
     scenario_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission_dep("simulation:read")),
 ):
     """Get inventory chart data."""
     chart = ScenarioService.get_inventory_chart(db, scenario_id)
@@ -220,7 +220,7 @@ def get_inventory_chart(
 def get_stockouts(
     scenario_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission_dep("simulation:read")),
 ):
     """Get stockout table data."""
     stockouts = ScenarioService.get_stockouts(db, scenario_id)
@@ -231,7 +231,7 @@ def get_stockouts(
 def get_recommendations(
     scenario_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission_dep("simulation:read")),
 ):
     """Get recommendations for a scenario."""
     return ScenarioService.get_recommendations(db, scenario_id)
@@ -241,7 +241,7 @@ def get_recommendations(
 def get_scenario_run_history(
     scenario_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission_dep("simulation:read")),
 ):
     """Get the history of simulation runs for a scenario."""
     runs = ScenarioService.get_scenario_runs(db, scenario_id)
@@ -264,7 +264,7 @@ def get_scenario_run_history(
 def apply_scenario_settings(
     scenario_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission_dep("simulation:run")),
 ):
     """Promote scenario parameters and execute recommended transfers/reorders."""
     if not ScenarioService.apply_scenario(db, scenario_id, current_user.id):
@@ -280,7 +280,7 @@ def apply_scenario_settings(
 def export_csv(
     scenario_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission_dep("simulation:read")),
 ):
     """Export scenario to CSV."""
     try:
@@ -293,7 +293,7 @@ def export_csv(
 def export_excel(
     scenario_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission_dep("simulation:read")),
 ):
     """Export scenario to Excel."""
     try:
@@ -306,7 +306,7 @@ def export_excel(
 def export_pdf(
     scenario_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission_dep("simulation:read")),
 ):
     """Export scenario to PDF."""
     try:
@@ -323,7 +323,7 @@ def export_pdf(
 def delete_scenario(
     scenario_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission_dep("simulation:delete")),
 ):
     """Delete a scenario."""
     if not ScenarioService.delete_scenario(db, scenario_id):

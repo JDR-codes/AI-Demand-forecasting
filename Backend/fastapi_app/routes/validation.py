@@ -4,7 +4,7 @@ from typing import List, Optional
 from sqlalchemy.orm import Session
 from datetime import datetime
 
-from fastapi_app.core.dependencies import get_current_user
+from fastapi_app.core.dependencies import get_current_user, require_permission_dep
 from fastapi_app.db.session import get_db
 from fastapi_app.services.validation.validation_service import (
     get_validation_errors,
@@ -33,7 +33,7 @@ router = APIRouter(prefix="/api/validation", tags=["Validation"])
 @router.get("/dashboard")
 def get_validation_dashboard(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission_dep("processing:read")),
 ):
     """Get validation statistics for dashboard."""
     return get_validation_statistics(db)
@@ -52,7 +52,7 @@ def list_validation_errors(
     page: int = Query(1, ge=1),
     limit: int = Query(20, ge=1, le=100),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission_dep("processing:read")),
 ):
     """Get validation errors with filters and pagination.
     Only returns ACTIVE errors (status='open', not fixed, not ignored)."""
@@ -67,7 +67,7 @@ def list_validation_errors(
 def get_validation_error_endpoint(
     error_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission_dep("processing:read")),
 ):
     err = get_validation_error(db, error_id)
     if not err:
@@ -84,7 +84,7 @@ def fix_validation_error_endpoint(
     error_id: int,
     payload: ValidationErrorFixRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission_dep("processing:run")),
 ):
     """Fix a validation error."""
     err = fix_validation_error(db, error_id, current_user.id, payload.comments)
@@ -102,7 +102,7 @@ def ignore_validation_error_endpoint(
     error_id: int,
     payload: ValidationErrorIgnoreRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission_dep("processing:run")),
 ):
     """Ignore a validation error."""
     err = ignore_validation_error(db, error_id, current_user.id, payload.reason)
@@ -119,7 +119,7 @@ def ignore_validation_error_endpoint(
 def fix_all_validation_errors_endpoint(
     payload: Optional[ValidationErrorBatchFixRequest] = None,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission_dep("processing:run")),
 ):
     """Fix all open validation errors (manual)."""
     source = payload.source if payload else None
@@ -131,7 +131,7 @@ def fix_all_validation_errors_endpoint(
 @router.post("/errors/auto-fix-all", response_model=AutoFixResult)
 def auto_fix_all_validation_errors_endpoint(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission_dep("processing:run")),
 ):
     """Auto-fix all fixable validation errors."""
     return auto_fix_all_validation_errors(db, current_user.id)

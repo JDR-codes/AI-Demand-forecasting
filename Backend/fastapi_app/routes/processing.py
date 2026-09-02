@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import desc, func
 from typing import List, Optional
 
-from fastapi_app.core.dependencies import get_current_user
+from fastapi_app.core.dependencies import get_current_user, require_permission_dep
 from fastapi_app.db.session import get_db
 from fastapi_app.models.auth_model import User
 from fastapi_app.models.processing_job_model import (
@@ -38,7 +38,7 @@ def _format_duration_seconds(seconds: Optional[float]) -> str:
 @router.get("/dashboard")
 def get_processing_dashboard(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_permission_dep("processing:read"))
 ):
     """Return a UI-ready dashboard summary for the data-processing screen."""
     latest_job = db.query(ProcessingJob).order_by(desc(ProcessingJob.created_at)).first()
@@ -114,7 +114,7 @@ def get_processing_dashboard(
 def start_processing(
     config: Optional[ProcessingJobCreate] = None,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_permission_dep("processing:run"))
 ):
     """Start a new processing job."""
     if config is None or (not config.data_source_ids and not config.upload_ids):
@@ -152,7 +152,7 @@ def start_processing(
 @router.get("/available-inputs")
 def get_available_inputs(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_permission_dep("processing:read"))
 ):
     """Get selectable data sources and uploads for data processing."""
     from fastapi_app.models.data_source_model import DataSource
@@ -191,7 +191,7 @@ def list_processing_jobs(
     limit: int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_permission_dep("processing:read"))
 ):
     """List all processing jobs created by the current user."""
     jobs = db.query(ProcessingJob).filter(
@@ -204,7 +204,7 @@ def list_processing_jobs(
 def get_processing_job(
     job_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_permission_dep("processing:read"))
 ):
     """Get a specific processing job."""
     job = db.query(ProcessingJob).filter(
@@ -220,7 +220,7 @@ def get_processing_job(
 def get_job_inputs(
     job_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_permission_dep("processing:read"))
 ):
     """Get all inputs for a specific processing job."""
     from fastapi_app.models.processing_job_input_model import ProcessingJobInput
@@ -263,7 +263,7 @@ def get_job_inputs(
 def get_processing_categories(
     job_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_permission_dep("processing:read"))
 ):
     """Get category summary for a specific processing job."""
     from fastapi_app.models.processing_job_input_model import ProcessingJobInput
@@ -310,7 +310,7 @@ def get_processing_categories(
 def get_processing_steps(
     job_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_permission_dep("processing:read"))
 ):
     """Get steps for a processing job."""
     job = db.query(ProcessingJob).filter(
@@ -326,7 +326,7 @@ def get_processing_steps(
 def pause_processing_job(
     job_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_permission_dep("processing:run"))
 ):
     """Pause a processing job."""
     # Ensure job ownership
@@ -345,7 +345,7 @@ def pause_processing_job(
 def resume_processing_job(
     job_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_permission_dep("processing:run"))
 ):
     """Resume a paused processing job."""
     # Ensure job ownership
@@ -364,7 +364,7 @@ def resume_processing_job(
 def cancel_processing_job(
     job_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_permission_dep("processing:run"))
 ):
     """Cancel a processing job."""
     # Ensure job ownership
@@ -383,7 +383,7 @@ def cancel_processing_job(
 def restart_processing_job(
     job_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_permission_dep("processing:run"))
 ):
     """Restart a processing job deterministically."""
     job = db.query(ProcessingJob).filter(

@@ -1,7 +1,7 @@
 # fastapi_app/schemas/data_source_schema.py
 from pydantic import BaseModel, field_validator, model_validator
 from datetime import datetime, date, time
-from typing import Optional, List, Union, Literal
+from typing import Optional, List, Union, Literal, Dict
 from enum import Enum
 
 
@@ -80,6 +80,7 @@ class DataSourceUpdate(BaseModel):
     health: Optional[str] = None
     sync_frequency: Optional[str] = None
     is_enabled: Optional[bool] = None
+    last_sync_watermark: Optional[str] = None
 
 
 class DataSourceOut(DataSourceBase):
@@ -88,6 +89,7 @@ class DataSourceOut(DataSourceBase):
     health: str
     is_enabled: bool
     last_sync: Optional[datetime]
+    last_sync_watermark: Optional[str] = None
     created_at: datetime
     record_count: Optional[int] = 0
     health_score: Optional[float] = 100.0
@@ -257,3 +259,15 @@ class SyncScheduleOut(SyncScheduleCreate):
 
     class Config:
         from_attributes = True     
+
+
+class DataSourceDashboardMetrics(BaseModel):
+    total_records: int
+    active_connections: int
+    total_connections: int
+    sync_frequency: str
+    validation_errors: int
+    health_status: Optional[Dict[str, int]] = None  # healthy, warning, error counts
+
+    class Config:
+        from_attributes = True

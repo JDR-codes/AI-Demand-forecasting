@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from typing import List, Optional
 from sqlalchemy.orm import Session
 
-from fastapi_app.core.dependencies import get_current_user
+from fastapi_app.core.dependencies import get_current_user, require_permission_dep
 from fastapi_app.db.session import get_db
 from fastapi_app.models.auth_model import User
 from fastapi_app.services.scheduler.scheduler_service import scheduler
@@ -13,7 +13,7 @@ router = APIRouter(prefix="/api/scheduler", tags=["Scheduler"])
 @router.get("/jobs")
 def get_scheduled_jobs(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_permission_dep("forecast:read"))
 ):
     """Get all scheduled jobs with next run times."""
     jobs = scheduler.get_scheduled_jobs()
@@ -23,7 +23,7 @@ def get_scheduled_jobs(
 @router.get("/jobs/sync")
 def get_scheduled_sync_jobs(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_permission_dep("forecast:read"))
 ):
     """Get all scheduled sync jobs."""
     jobs = scheduler.get_sync_jobs()
@@ -34,7 +34,7 @@ def get_scheduled_sync_jobs(
 def get_scheduled_job(
     job_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_permission_dep("forecast:read"))
 ):
     """Get a specific scheduled job."""
     job = scheduler.get_job_status(job_id)
@@ -47,7 +47,7 @@ def get_scheduled_job(
 def pause_scheduled_job(
     job_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_permission_dep("forecast:run"))
 ):
     """Pause a scheduled job."""
     if not scheduler.pause_job(job_id):
@@ -59,7 +59,7 @@ def pause_scheduled_job(
 def resume_scheduled_job(
     job_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_permission_dep("forecast:run"))
 ):
     """Resume a paused scheduled job."""
     if not scheduler.resume_job(job_id):
@@ -71,7 +71,7 @@ def resume_scheduled_job(
 def run_scheduled_job_now(
     job_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_permission_dep("forecast:run"))
 ):
     """Execute a scheduled job immediately."""
     if not scheduler.run_now(job_id):
@@ -83,7 +83,7 @@ def run_scheduled_job_now(
 def delete_scheduled_job(
     job_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_permission_dep("forecast:delete"))
 ):
     """Delete a scheduled job."""
     if not scheduler.remove_job(job_id):
@@ -94,7 +94,7 @@ def delete_scheduled_job(
 @router.get("/frequencies")
 def get_valid_frequencies(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_permission_dep("forecast:read"))
 ):
     """Get valid frequency options."""
     from fastapi_app.services.scheduler.scheduler_service import VALID_FREQUENCIES

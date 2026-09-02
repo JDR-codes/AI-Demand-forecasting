@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
 
-from fastapi_app.core.dependencies import get_current_user
+from fastapi_app.core.dependencies import get_current_user, require_permission_dep
 from fastapi_app.db.session import get_db
 from fastapi_app.models.auth_model import User
 from fastapi_app.models.processing_job_model import (
@@ -20,7 +20,7 @@ router = APIRouter(prefix="/api/processing/details", tags=["Processing Details"]
 def get_processing_outliers(
     job_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_permission_dep("processing:read"))
 ):
     """Get outlier detection results for a processing job."""
     job = db.query(ProcessingJob).filter(
@@ -61,7 +61,7 @@ def get_outlier_chart(
     job_id: str,
     column: str = Query(..., description="Column name to chart"),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_permission_dep("processing:read"))
 ):
     """Get outlier chart data for a specific column."""
     job = db.query(ProcessingJob).filter(
@@ -95,7 +95,7 @@ def get_outlier_chart(
 def get_processing_features(
     job_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_permission_dep("processing:read"))
 ):
     """Get generated features for a processing job."""
     job = db.query(ProcessingJob).filter(
@@ -144,7 +144,7 @@ def get_processing_logs(
     limit: int = Query(100, ge=1, le=500),
     level: str = Query(None, description="Filter by log level"),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_permission_dep("processing:read"))
 ):
     """Get logs for a processing job."""
     job = db.query(ProcessingJob).filter(

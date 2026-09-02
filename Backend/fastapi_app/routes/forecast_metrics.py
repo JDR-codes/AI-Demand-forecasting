@@ -4,7 +4,7 @@ from typing import List, Optional
 from sqlalchemy.orm import Session
 from datetime import datetime, timedelta
 
-from fastapi_app.core.dependencies import get_current_user
+from fastapi_app.core.dependencies import get_current_user, require_permission_dep
 from fastapi_app.db.session import get_db
 from fastapi_app.models.auth_model import User
 from fastapi_app.models.forecast_job_model import ForecastResult, ForecastJob
@@ -18,7 +18,7 @@ def get_metrics(
     days: int = Query(30, ge=1, le=365, description="Number of days to consider"),
     model_type: Optional[str] = Query(None, description="Filter by model type"),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_permission_dep("forecast:read"))
 ):
     """
     Get forecast metrics including RMSE, MAE, MAPE, Accuracy, R².
@@ -81,7 +81,7 @@ def get_forecast_history(
     limit: int = Query(100, ge=1, le=500),
     offset: int = Query(0, ge=0),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user)
+    current_user: User = Depends(require_permission_dep("forecast:read"))
 ):
     """Get forecast history with performance metrics."""
     jobs = db.query(ForecastJob).order_by(

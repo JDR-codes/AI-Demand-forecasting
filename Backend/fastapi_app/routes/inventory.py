@@ -7,7 +7,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
-from fastapi_app.core.dependencies import get_current_user
+from fastapi_app.core.dependencies import get_current_user, require_permission_dep
 from fastapi_app.db.session import get_db
 from fastapi_app.models.auth_model import User
 from fastapi_app.schemas.inventory_schema import (
@@ -34,7 +34,7 @@ router = APIRouter(prefix="/api/inventory", tags=["Inventory"])
 
 @router.get("/dashboard", response_model=InventoryDashboardResponse)
 def get_inventory_dashboard(
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission_dep("inventory:read")),
     db: Session = Depends(get_db),
 ):
     """Get the complete inventory dashboard in one request."""
@@ -54,7 +54,7 @@ def get_inventory_alerts(
     severity: Optional[str] = None,
     limit: int = Query(50, ge=1, le=100),
     offset: int = Query(0, ge=0),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission_dep("inventory:read")),
     db: Session = Depends(get_db),
 ):
     """Get inventory alerts."""
@@ -64,7 +64,7 @@ def get_inventory_alerts(
 @router.post("/alerts/{alert_id}/mark-read")
 def mark_alert_read(
     alert_id: int,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission_dep("inventory:write")),
     db: Session = Depends(get_db),
 ):
     """Mark an alert as read."""
@@ -80,7 +80,7 @@ def mark_alert_read(
 @router.post("/update-stock", response_model=UpdateStockResponse)
 def update_stock(
     request: UpdateStockRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission_dep("inventory:write")),
     db: Session = Depends(get_db),
 ):
     """Update inventory stock level."""
@@ -106,7 +106,7 @@ def update_stock(
 @router.get("/export")
 def export_inventory_report(
     format: str = Query("csv", pattern="^(csv|excel|pdf)$"),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission_dep("inventory:read")),
     db: Session = Depends(get_db),
 ):
     """Export inventory report."""
@@ -123,7 +123,7 @@ def export_inventory_report(
 @router.post("/transfers/{transfer_id}/approve")
 def approve_transfer_recommendation(
     transfer_id: int,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission_dep("inventory:write")),
     db: Session = Depends(get_db),
 ):
     """Approve and execute a warehouse stock transfer recommendation."""
@@ -136,7 +136,7 @@ def approve_transfer_recommendation(
 @router.post("/transfers")
 def create_manual_stock_transfer(
     request: ManualTransferRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission_dep("inventory:write")),
     db: Session = Depends(get_db),
 ):
     """Manually create and execute a stock transfer between warehouses."""
@@ -156,7 +156,7 @@ def create_manual_stock_transfer(
 @router.get("/transfers", response_model=List[TransferLogResponse])
 def get_stock_transfers_list(
     status: Optional[str] = None,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission_dep("inventory:read")),
     db: Session = Depends(get_db),
 ):
     """Get the log history of warehouse stock transfers."""

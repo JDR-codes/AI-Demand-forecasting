@@ -60,10 +60,13 @@ class TrainingService:
             "created_by": created_by
         })
         
+        clean_model_type = config.model_type.lower().replace("-", "_")
+        
         job = TrainingJob(
             job_id=str(uuid.uuid4()),
-            model_type=config.model_type,
-            upload_id=None,
+            model_type=clean_model_type,
+            model_registry_id=config.model_registry_id,
+            upload_id=config.upload_id,
             processing_job_id=config.processing_job_id,
             csv_path=None,
             configuration=configuration,
@@ -185,7 +188,7 @@ class TrainingService:
         start_time = time.time()
         total_steps = len(TRAINING_STEPS)
         model = None
-        model_type = job.model_type.lower()
+        model_type = job.model_type.lower().replace("-", "_")
         
         try:
             # Step 1: Processing Data
@@ -196,67 +199,56 @@ class TrainingService:
             job.progress_percentage = 5.0
             db.commit()
             
-            # Load series with fallback to default
+            # Load series safely
             series = None
+            dataset_source = None
+            import os
+            
             if job.processing_job_id:
-                try:
-                    from fastapi_app.models.processing_job_model import ProcessedDataset, ProcessingJob
-                    import os
+                dataset_source = f"processing job {job.processing_job_id}"
+                from fastapi_app.models.processing_job_model import ProcessedDataset, ProcessingJob
+                
+                query = db.query(ProcessedDataset).join(
+                    ProcessingJob, ProcessedDataset.processing_job_id == ProcessingJob.id
+                )
+                if str(job.processing_job_id).isdigit():
+                    query = query.filter(ProcessingJob.id == int(job.processing_job_id))
+                else:
+                    query = query.filter(ProcessingJob.job_id == str(job.processing_job_id))
                     
-                    query = db.query(ProcessedDataset).join(
-                        ProcessingJob, ProcessedDataset.processing_job_id == ProcessingJob.id
-                    )
-                    if str(job.processing_job_id).isdigit():
-                        query = query.filter(ProcessingJob.id == int(job.processing_job_id))
-                    else:
-                        query = query.filter(ProcessingJob.job_id == str(job.processing_job_id))
-                        
-                    processed_ds = query.filter(ProcessingJob.status == "completed").order_by(ProcessedDataset.created_at.desc()).first()
-                    if processed_ds and processed_ds.file_path and os.path.exists(processed_ds.file_path):
-                        logger.info(f"Using processed dataset from job {job.processing_job_id} for training: {processed_ds.file_path}")
-                        series = prepare_series(path=processed_ds.file_path)
-                except Exception as e:
-                    logger.warning(f"Could not load from processing_job_id: {str(e)}")
-            
-            if series is None and job.csv_path:
-                try:
-                    series = prepare_series(path=job.csv_path)
-                except Exception as e:
-                    logger.warning(f"Could not load from csv_path: {str(e)}")
-            
-            if series is None and job.upload_id:
+                processed_ds = query.filter(ProcessingJob.status == "completed").order_by(ProcessedDataset.created_at.desc()).first()
+                if not processed_ds or not processed_ds.file_path or not os.path.exists(processed_ds.file_path):
+                    raise ValueError(f"Processed dataset file for processing job {job.processing_job_id} not found on disk")
+                
+                logger.info(f"Using processed dataset: {processed_ds.file_path}")
+                series = prepare_series(path=processed_ds.file_path)
+                
+            elif job.upload_id:
+                dataset_source = f"upload {job.upload_id}"
                 upload = db.query(Upload).filter(Upload.id == job.upload_id).first()
-                if upload and upload.file_path:
-                    try:
-                        # Check if there is a completed ProcessedDataset version of this upload
-                        from fastapi_app.models.processing_job_model import ProcessedDataset, ProcessingJob
-                        from fastapi_app.models.processing_job_input_model import ProcessingJobInput
-                        import os
-                        
-                        processed_ds = db.query(ProcessedDataset).join(
-                            ProcessingJob, ProcessedDataset.processing_job_id == ProcessingJob.id
-                        ).join(
-                            ProcessingJobInput, ProcessingJobInput.processing_job_id == ProcessingJob.id
-                        ).filter(
-                            ProcessingJobInput.upload_id == job.upload_id,
-                            ProcessingJob.status == "completed"
-                        ).order_by(ProcessedDataset.created_at.desc()).first()
-                        
-                        path_to_load = upload.file_path
-                        if processed_ds and processed_ds.file_path and os.path.exists(processed_ds.file_path):
-                            path_to_load = processed_ds.file_path
-                            logger.info(f"Using processed dataset for training: {path_to_load}")
-                        
-                        series = prepare_series(path=path_to_load)
-                    except Exception as e:
-                        logger.warning(f"Could not load from upload: {str(e)}")
-            
-            if series is None:
-                try:
-                    series = prepare_series(path=DEFAULT_DATASET_PATH)
-                    logger.info(f"Using default dataset: {DEFAULT_DATASET_PATH}")
-                except Exception as e:
-                    raise ValueError(f"No data available for training: {str(e)}")
+                if not upload:
+                    raise ValueError(f"Upload record for upload ID {job.upload_id} not found")
+                
+                from fastapi_app.models.processing_job_model import ProcessedDataset, ProcessingJob
+                from fastapi_app.models.processing_job_input_model import ProcessingJobInput
+                
+                processed_ds = db.query(ProcessedDataset).join(
+                    ProcessingJob, ProcessedDataset.processing_job_id == ProcessingJob.id
+                ).join(
+                    ProcessingJobInput, ProcessingJobInput.processing_job_id == ProcessingJob.id
+                ).filter(
+                    ProcessingJobInput.upload_id == job.upload_id,
+                    ProcessingJob.status == "completed"
+                ).order_by(ProcessedDataset.created_at.desc()).first()
+                
+                if not processed_ds or not processed_ds.file_path or not os.path.exists(processed_ds.file_path):
+                    raise ValueError(f"No completed processed dataset found for upload {job.upload_id}. Raw files cannot be used directly for training.")
+                
+                logger.info(f"Using processed dataset from upload: {processed_ds.file_path}")
+                series = prepare_series(path=processed_ds.file_path)
+                
+            else:
+                raise ValueError("No valid processing_job_id or upload_id specified. Real production forecasts require a completed ProcessedDataset.")
             
             if series is None or len(series) == 0:
                 raise ValueError("No data available for training")
@@ -270,6 +262,12 @@ class TrainingService:
             
             TrainingService._update_step(db, job.job_id, 1, "completed", message=f"Loaded {dataset_size} records")
             
+            # Step 1: Check cancellation at end of step 1
+            db.refresh(job)
+            if job.status == TrainingStatus.CANCELLED:
+                logger.info(f"Training job {job_id} cancelled after Step 1")
+                return job
+                
             # Step 2: Validation
             TrainingService._update_step(db, job.job_id, 2, "running", message="Validating data quality...")
             job.current_step = 2
@@ -295,6 +293,12 @@ class TrainingService:
             
             TrainingService._update_step(db, job.job_id, 2, "completed", message="Data validation passed")
             
+            # Step 2: Check cancellation at end of step 2
+            db.refresh(job)
+            if job.status == TrainingStatus.CANCELLED:
+                logger.info(f"Training job {job_id} cancelled after Step 2")
+                return job
+
             # Step 3: Training
             TrainingService._update_step(db, job.job_id, 3, "running", message=f"Training {model_type.upper()} model...")
             job.current_step = 3
@@ -303,49 +307,53 @@ class TrainingService:
             job.progress_percentage = 25.0
             db.commit()
             
+            # Resolve Model Registry Configuration
+            resolved_config = {
+                "epochs": 20,
+                "batch_size": 16,
+                "learning_rate": 0.001,
+                "validation_split": 0.2,
+                "seasonality": True,
+                "n_lags": 7,
+                "order": (1, 1, 1),
+                "seasonal_order": (1, 1, 1, 12) if model_type == "sarima" else (0, 0, 0, 0)
+            }
+            
+            # Load config from database config if parent model registry is specified
+            if job.model_registry_id:
+                from fastapi_app.models.training_configuration_model import TrainingConfiguration
+                db_config = db.query(TrainingConfiguration).filter(
+                    TrainingConfiguration.model_registry_id == job.model_registry_id
+                ).first()
+                if db_config:
+                    resolved_config["epochs"] = db_config.epochs or 20
+                    resolved_config["batch_size"] = db_config.batch_size or 16
+                    resolved_config["learning_rate"] = db_config.learning_rate or 0.001
+                    resolved_config["validation_split"] = db_config.validation_split or 0.2
+                    resolved_config["seasonality"] = db_config.seasonality if db_config.seasonality is not None else True
+                    
+            # Overwrite with job-specific overrides if provided
+            if job.configuration:
+                for k, v in job.configuration.items():
+                    if v is not None:
+                        resolved_config[k] = v
+
             epoch_start = 25
-            total_epochs = job.configuration.get("epochs", 20) if job.configuration else 20
+            total_epochs = resolved_config["epochs"]
             
             # Train based on model type
+            result = None
             if model_type == "arima":
-                # Real ARIMA model training using statsmodels via train_sarima
                 job.current_step_message = "Training ARIMA model..."
                 db.commit()
                 
-                result = train_sarima(training_values, order=(1, 1, 1), seasonal_order=(0, 0, 0, 0))
+                result = train_sarima(
+                    training_values, 
+                    order=resolved_config["order"], 
+                    seasonal_order=(0, 0, 0, 0)
+                )
                 if "error" in result:
                     raise ValueError(result["error"])
-                
-                metrics = result.get("metrics", {})
-                mape = metrics.get("mape", 0)
-                accuracy = float(max(0.0, 1.0 - (mape / 100.0)))
-                
-                model_name = f"ARIMA_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}"
-                model_path = os.path.join(MODELS_DIR, f"{model_name}.pkl")
-                os.makedirs(os.path.dirname(model_path), exist_ok=True)
-                
-                import pickle
-                with open(model_path, "wb") as f:
-                    pickle.dump(result.get("model"), f)
-                
-                model = ModelRegistryService.create_model_from_training(
-                    db=db,
-                    name=model_name,
-                    model_type="arima",
-                    artifact_path=model_path,
-                    training_size=len(training_values),
-                    hyperparameters={"order": (1, 1, 1)}
-                )
-                job.model_registry_id = model.id
-                job.metrics = {
-                    "accuracy": accuracy,
-                    "rmse": metrics.get("rmse", 0),
-                    "mae": metrics.get("mae", 0),
-                    "mape": mape,
-                    "r2": metrics.get("r2", 0),
-                    "training_loss": None,
-                    "validation_loss": None
-                }
                 
                 # Progress for ARIMA (fast)
                 job.progress_percentage = 60.0
@@ -354,165 +362,143 @@ class TrainingService:
                 db.commit()
                 
             elif model_type == "xgboost":
-                # Simulate epochs for XGBoost
+                # Simulated epoch progress callbacks
                 for epoch in range(1, min(total_epochs, 10) + 1):
+                    # Check cancellation inside simulation loop
+                    db.refresh(job)
+                    if job.status == TrainingStatus.CANCELLED:
+                        logger.info(f"Training job {job_id} cancelled during training loop")
+                        return job
                     job.current_epoch = epoch
                     job.progress_percentage = epoch_start + (epoch / min(total_epochs, 10)) * 35
                     job.current_step_message = f"Training XGBoost epoch {epoch}/{min(total_epochs, 10)}"
                     db.commit()
                     time.sleep(0.3)
                 
-                result = train_xgboost(training_values)
-                metrics = result.get("metrics", {})
-                job.metrics = {
-                    "accuracy": metrics.get("accuracy", 0),
-                    "rmse": metrics.get("rmse", 0),
-                    "mae": metrics.get("mae", 0),
-                    "mape": metrics.get("mape", 0),
-                    "r2": metrics.get("r2", 0),
-                    "training_loss": metrics.get("training_loss"),
-                    "validation_loss": metrics.get("validation_loss")
-                }
-                
-                model = ModelRegistryService.create_model_from_training(
-                    db=db,
-                    name=f"XGBoost_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}",
-                    model_type="xgboost",
-                    training_size=len(training_values),
-                    hyperparameters={"n_lags": 7}
+                result = train_xgboost(
+                    training_values, 
+                    n_lags=resolved_config["n_lags"],
+                    test_frac=resolved_config["validation_split"]
                 )
-                job.model_registry_id = model.id
+                if "error" in result:
+                    raise ValueError(result["error"])
+                    
                 job.progress_percentage = 60.0
                 db.commit()
                 
             elif model_type == "lstm":
-                # Simulate epochs for LSTM
                 for epoch in range(1, min(total_epochs, 20) + 1):
+                    db.refresh(job)
+                    if job.status == TrainingStatus.CANCELLED:
+                        logger.info(f"Training job {job_id} cancelled during training loop")
+                        return job
                     job.current_epoch = epoch
                     job.progress_percentage = epoch_start + (epoch / min(total_epochs, 20)) * 35
                     job.current_step_message = f"Training LSTM epoch {epoch}/{min(total_epochs, 20)}"
                     db.commit()
                     time.sleep(0.4)
                 
-                result = train_lstm(training_values)
-                metrics = result.get("metrics", {})
-                job.metrics = {
-                    "accuracy": metrics.get("accuracy", 0),
-                    "rmse": metrics.get("rmse", 0),
-                    "mae": metrics.get("mae", 0),
-                    "mape": metrics.get("mape", 0),
-                    "r2": metrics.get("r2", 0),
-                    "training_loss": metrics.get("training_loss"),
-                    "validation_loss": metrics.get("validation_loss")
-                }
-                
-                model = ModelRegistryService.create_model_from_training(
-                    db=db,
-                    name=f"LSTM_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}",
-                    model_type="lstm",
-                    training_size=len(training_values),
-                    hyperparameters={"epochs": 20, "batch_size": 16}
+                result = train_lstm(
+                    training_values, 
+                    n_lags=resolved_config["n_lags"], 
+                    test_frac=resolved_config["validation_split"],
+                    epochs=resolved_config["epochs"], 
+                    batch_size=resolved_config["batch_size"]
                 )
-                job.model_registry_id = model.id
+                if "error" in result:
+                    raise ValueError(result["error"])
+                    
                 job.progress_percentage = 60.0
                 db.commit()
                 
             elif model_type == "prophet":
-                result = train_prophet(training_values)
+                result = train_prophet(
+                    training_values, 
+                    test_frac=resolved_config["validation_split"]
+                )
                 if result.get("error"):
                     raise ValueError(result["error"])
-                metrics = result.get("metrics", {})
-                job.metrics = {
-                    "accuracy": metrics.get("accuracy", 0),
-                    "rmse": metrics.get("rmse", 0),
-                    "mae": metrics.get("mae", 0),
-                    "mape": metrics.get("mape", 0),
-                    "r2": metrics.get("r2", 0),
-                    "training_loss": metrics.get("training_loss"),
-                    "validation_loss": metrics.get("validation_loss")
-                }
                 
-                model = ModelRegistryService.create_model_from_training(
-                    db=db,
-                    name=f"Prophet_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}",
-                    model_type="prophet",
-                    training_size=len(training_values)
-                )
-                job.model_registry_id = model.id
                 job.progress_percentage = 60.0
                 db.commit()
+                
             elif model_type == "transformer":
-                # Transformer training with epoch simulation
-                result = train_transformer(training_values)
+                # Simulate epochs progress
+                for epoch in range(1, min(total_epochs, 10) + 1):
+                    db.refresh(job)
+                    if job.status == TrainingStatus.CANCELLED:
+                        logger.info(f"Training job {job_id} cancelled during training loop")
+                        return job
+                    job.current_epoch = epoch
+                    job.progress_percentage = epoch_start + (epoch / min(total_epochs, 10)) * 35
+                    job.current_step_message = f"Training Transformer epoch {epoch}/{min(total_epochs, 10)}"
+                    db.commit()
+                    time.sleep(0.3)
+                    
+                result = train_transformer(
+                    training_values, 
+                    n_lags=resolved_config["n_lags"], 
+                    test_frac=resolved_config["validation_split"],
+                    epochs=resolved_config["epochs"], 
+                    batch_size=resolved_config["batch_size"]
+                )
                 if result.get("error"):
                     raise ValueError(result["error"])
-                metrics = result.get("metrics", {})
-                job.metrics = {
-                    "accuracy": metrics.get("accuracy", 0),
-                    "rmse": metrics.get("rmse", 0),
-                    "mae": metrics.get("mae", 0),
-                    "mape": metrics.get("mape", 0),
-                    "r2": metrics.get("r2", 0),
-                }
                 
-                model = ModelRegistryService.create_model_from_training(
-                    db=db,
-                    name=f"Transformer_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}",
-                    model_type="transformer",
-                    training_size=len(training_values)
-                )
-                job.model_registry_id = model.id
                 job.progress_percentage = 60.0
                 db.commit()
+                
             elif model_type == "random_forest":
-                result = train_random_forest(training_values)
+                result = train_random_forest(
+                    training_values, 
+                    n_lags=resolved_config["n_lags"], 
+                    test_frac=resolved_config["validation_split"]
+                )
                 if result.get("error"):
                     raise ValueError(result["error"])
-                metrics = result.get("metrics", {})
-                job.metrics = {
-                    "accuracy": metrics.get("accuracy", 0),
-                    "rmse": metrics.get("rmse", 0),
-                    "mae": metrics.get("mae", 0),
-                    "mape": metrics.get("mape", 0),
-                    "r2": metrics.get("r2", 0),
-                }
                 
-                model = ModelRegistryService.create_model_from_training(
-                    db=db,
-                    name=f"RandomForest_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}",
-                    model_type="random_forest",
-                    training_size=len(training_values)
-                )
-                job.model_registry_id = model.id
                 job.progress_percentage = 60.0
                 db.commit()
+                
             elif model_type == "sarima":
-                result = train_sarima(training_values)
+                result = train_sarima(
+                    training_values, 
+                    order=resolved_config["order"], 
+                    seasonal_order=resolved_config["seasonal_order"]
+                )
                 if result.get("error"):
                     raise ValueError(result["error"])
-                metrics = result.get("metrics", {})
-                job.metrics = {
-                    "accuracy": metrics.get("accuracy", 0),
-                    "rmse": metrics.get("rmse", 0),
-                    "mae": metrics.get("mae", 0),
-                    "mape": metrics.get("mape", 0),
-                    "r2": metrics.get("r2", 0),
-                }
                 
-                model = ModelRegistryService.create_model_from_training(
-                    db=db,
-                    name=f"SARIMA_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}",
-                    model_type="sarima",
-                    training_size=len(training_values)
-                )
-                job.model_registry_id = model.id
                 job.progress_percentage = 60.0
                 db.commit()
+                
             else:
                 raise ValueError(f"Unsupported model type: {model_type}")
             
+            # Map metrics to job record
+            metrics = result.get("metrics", {})
+            mape = metrics.get("mape", 0)
+            accuracy = metrics.get("accuracy", float(max(0.0, 1.0 - (mape / 100.0))))
+            
+            job.metrics = {
+                "accuracy": accuracy,
+                "rmse": metrics.get("rmse", 0),
+                "mae": metrics.get("mae", 0),
+                "mape": mape,
+                "r2": metrics.get("r2", 0),
+                "training_loss": metrics.get("training_loss"),
+                "validation_loss": metrics.get("validation_loss")
+            }
+            db.commit()
+            
             TrainingService._update_step(db, job.job_id, 3, "completed", message="Model training completed")
             
+            # Step 3: Check cancellation at end of step 3
+            db.refresh(job)
+            if job.status == TrainingStatus.CANCELLED:
+                logger.info(f"Training job {job_id} cancelled after Step 3")
+                return job
+                
             # Step 4: Evaluation
             TrainingService._update_step(db, job.job_id, 4, "running", message="Evaluating model performance...")
             job.current_step = 4
@@ -521,13 +507,17 @@ class TrainingService:
             job.progress_percentage = 70.0
             db.commit()
             
-            # Calculate improvement
-            previous_best = db.query(TrainingHistory).filter(
-                TrainingHistory.model_registry_id == model.id
-            ).order_by(TrainingHistory.trained_at.desc()).first()
-            
-            accuracy_before = previous_best.accuracy_after if previous_best else None
-            accuracy_after = job.metrics.get("accuracy", 0)
+            # Calculate improvement compared to base model
+            previous_best = None
+            accuracy_before = None
+            if job.model_registry_id:
+                previous_best = db.query(TrainingHistory).filter(
+                    TrainingHistory.model_registry_id == job.model_registry_id
+                ).order_by(TrainingHistory.trained_at.desc()).first()
+                if previous_best:
+                    accuracy_before = previous_best.accuracy_after
+                    
+            accuracy_after = accuracy
             
             improvement = None
             if accuracy_before is not None and accuracy_after is not None:
@@ -539,6 +529,12 @@ class TrainingService:
             
             TrainingService._update_step(db, job.job_id, 4, "completed", message=f"Accuracy: {accuracy_after:.1%}" if accuracy_after else "Evaluation complete")
             
+            # Step 4: Check cancellation at end of step 4
+            db.refresh(job)
+            if job.status == TrainingStatus.CANCELLED:
+                logger.info(f"Training job {job_id} cancelled after Step 4")
+                return job
+
             # Step 5: Saving Model
             TrainingService._update_step(db, job.job_id, 5, "running", message="Saving model to registry...")
             job.current_step = 5
@@ -547,20 +543,80 @@ class TrainingService:
             job.progress_percentage = 90.0
             db.commit()
             
-            # Auto-generate version from history
+            # Resolve or Create Model Registry Row
+            from fastapi_app.models.model_registry_model import ModelRegistry
+            model = None
+            if job.model_registry_id:
+                model = db.query(ModelRegistry).filter(ModelRegistry.id == job.model_registry_id).first()
+                
+            if not model:
+                # Generate new Model Registry Row
+                model_name = f"{model_type.upper()}_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}"
+                model = ModelRegistry(
+                    id=str(uuid.uuid4()),
+                    name=model_name,
+                    model_type=model_type,
+                    status="active",
+                    is_active=True,
+                    is_default=False,
+                    deployment_status="development"
+                )
+                db.add(model)
+                db.flush()
+                job.model_registry_id = model.id
+                db.commit()
+                
+            # Auto-generate next version string from history
             version = TrainingService._get_version_from_history(db, model.id)
             
-            # Update model with training info
+            # Save artifact file to disk (Durable flow for all models)
+            model_dir = os.path.join(MODELS_DIR, model_type, model.id, version)
+            os.makedirs(model_dir, exist_ok=True)
+            model_path = os.path.join(model_dir, "model.pkl")
+            
+            import joblib
+            try:
+                joblib.dump(result.get("model"), model_path)
+            except Exception as dump_err:
+                logger.error(f"Failed to dump model using joblib: {dump_err}, falling back to pickle")
+                import pickle
+                with open(model_path, "wb") as f:
+                    pickle.dump(result.get("model"), f)
+                    
+            artifact_size = os.path.getsize(model_path) if os.path.exists(model_path) else 0
+            
+            # Calculate dataset hash
+            import hashlib
+            data_str = str(training_values).encode('utf-8')
+            dataset_hash = hashlib.sha256(data_str).hexdigest()
+            
+            # Build lineage metadata
+            meta_info = {
+                "processing_job_id": job.processing_job_id,
+                "upload_id": job.upload_id,
+                "dataset_source": dataset_source,
+                "dataset_row_count": dataset_size,
+                "trained_at": datetime.utcnow().isoformat(),
+                "configuration_used": resolved_config
+            }
+            
+            # Update Model Registry properties
             model.last_trained = datetime.utcnow()
-            model.best_accuracy = job.metrics.get("accuracy", 0)
-            model.best_rmse = job.metrics.get("rmse")
-            model.best_mae = job.metrics.get("mae")
-            model.best_mape = job.metrics.get("mape")
-            model.best_r2 = job.metrics.get("r2")
-            model.best_loss = job.metrics.get("training_loss")
+            model.best_accuracy = accuracy
+            model.best_rmse = metrics.get("rmse")
+            model.best_mae = metrics.get("mae")
+            model.best_mape = mape
+            model.best_r2 = metrics.get("r2")
+            model.best_loss = metrics.get("training_loss")
             model.training_duration = (datetime.utcnow() - job.started_at).total_seconds() if job.started_at else 0
             model.version = version
             model.training_size = dataset_size
+            model.artifact_path = model_path
+            model.artifact_size = artifact_size
+            model.dataset_hash = dataset_hash
+            model.meta_info = meta_info
+            model.hyperparameters = resolved_config
+            
             db.commit()
             
             # Record training history
@@ -573,12 +629,12 @@ class TrainingService:
                 accuracy_after=accuracy_after,
                 improvement_percentage=improvement,
                 rmse_before=previous_best.rmse_after if previous_best else None,
-                rmse_after=job.metrics.get("rmse"),
+                rmse_after=metrics.get("rmse"),
                 mae_before=previous_best.mae_after if previous_best else None,
-                mae_after=job.metrics.get("mae"),
+                mae_after=metrics.get("mae"),
                 mape_before=previous_best.mape_after if previous_best else None,
-                mape_after=job.metrics.get("mape"),
-                duration_seconds=job.metrics.get("training_duration", 0) or (datetime.utcnow() - job.started_at).total_seconds() if job.started_at else 0,
+                mape_after=mape,
+                duration_seconds=model.training_duration,
                 epochs=total_epochs,
                 dataset_size=dataset_size,
                 metrics=job.metrics,
@@ -591,22 +647,21 @@ class TrainingService:
             job.progress_percentage = 95.0
             db.commit()
             
-            # ✅ Insert ForecastMetricHistory
-            if job.metrics:
-                metric_history = ForecastMetricHistory(
-                    model_id=model.id,
-                    model_type=model_type.upper(),
-                    date=datetime.utcnow(),
-                    accuracy=job.metrics.get("accuracy"),
-                    rmse=job.metrics.get("rmse"),
-                    mae=job.metrics.get("mae"),
-                    mape=job.metrics.get("mape"),
-                    r2=job.metrics.get("r2"),
-                    job_id=job.job_id,
-                    records=dataset_size
-                )
-                db.add(metric_history)
-                db.commit()
+            # Insert ForecastMetricHistory (Use lowercase model_type)
+            metric_history = ForecastMetricHistory(
+                model_id=model.id,
+                model_type=model_type.lower(),
+                date=datetime.utcnow(),
+                accuracy=accuracy,
+                rmse=metrics.get("rmse"),
+                mae=metrics.get("mae"),
+                mape=mape,
+                r2=metrics.get("r2"),
+                job_id=job.job_id,
+                records=dataset_size
+            )
+            db.add(metric_history)
+            db.commit()
             
             TrainingService._update_step(db, job.job_id, 5, "completed", message="Model saved to registry")
             
@@ -616,19 +671,17 @@ class TrainingService:
             job.completed_at = datetime.utcnow()
             job.elapsed_time = (job.completed_at - job.started_at).total_seconds() if job.started_at else 0
             job.current_step_message = "Training completed successfully"
-            
             db.commit()
-            db.refresh(job)
             
-            # ✅ Create notification for successful training
+            # Send Notification
             if job.created_by:
                 NotificationService.create_training_notification(
                     db=db,
                     user_id=job.created_by,
                     model_type=model_type.upper(),
                     success=True,
-                    accuracy=job.metrics.get("accuracy", 0),
-                    message=f"{model_type.upper()} training completed successfully. Accuracy: {job.metrics.get('accuracy', 0):.1%}"
+                    accuracy=accuracy,
+                    message=f"{model_type.upper()} training completed successfully. Accuracy: {accuracy:.1%}"
                 )
             
             return job
@@ -642,9 +695,16 @@ class TrainingService:
             job.completed_at = datetime.utcnow()
             job.current_step_message = f"Failed at {job.current_step_name}: {str(e)}"
             db.commit()
-            db.refresh(job)
             
-            # ✅ Create notification for training failure
+            # Update currently failing step in table
+            TrainingService._update_step(
+                db, 
+                job.job_id, 
+                job.current_step or 1, 
+                "failed", 
+                message=str(e)
+            )
+            
             if job.created_by:
                 NotificationService.create_training_notification(
                     db=db,

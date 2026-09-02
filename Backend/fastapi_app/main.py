@@ -31,8 +31,9 @@ from fastapi_app.routes.users import router as users_router
 # Audit Logs
 from fastapi_app.routes.audit_logs import router as audit_log_router
 
-# Data Sources & Uploads
+# Data Sources, Uploads & Scheduler
 from fastapi_app.routes.data_sources import router as data_sources_router
+from fastapi_app.routes.scheduler import router as scheduler_router
 from fastapi_app.routes.uploads import router as uploads_router
 from fastapi_app.routes.validation import router as validation_router
 
@@ -42,9 +43,6 @@ from fastapi_app.routes.processing_details import router as processing_details_r
 
 # Notifications
 from fastapi_app.routes.notifications import router as notifications_router
-
-# Scheduler
-from fastapi_app.routes.scheduler import router as scheduler_router
 
 # WebSocket
 from fastapi_app.routes.websocket import router as websocket_router
@@ -57,7 +55,6 @@ from fastapi_app.routes.forecast_jobs import router as forecast_jobs_router
 from fastapi_app.routes.training_jobs import router as training_jobs_router
 from fastapi_app.routes.model_registry import router as models_router
 from fastapi_app.routes.forecast_engine import router as forecast_engine_router
-from fastapi_app.routes.training_config import router as training_config_router
 
 # Recommendations
 from fastapi_app.routes.recommendation import router as recommendation_router
@@ -75,9 +72,6 @@ from fastapi_app.routes.reports_router import router as reports_router
 # Dashboard & Mock
 from fastapi_app.routes.dashboard import router as dashboard_router
 from fastapi_app.routes.mock_router import router as mock_router
-
-# Data Integration (Additional upload endpoint)
-from fastapi_app.routes.data_integration import router as data_integration_router
 
 # ============================================================================
 # LIFESPAN MANAGEMENT
@@ -179,16 +173,13 @@ app.include_router(audit_log_router)                 # /api/audit-logs
 # Dashboard
 app.include_router(dashboard_router)                 # /api/dashboard
 
-# Data Sources & Uploads
+# Data Sources, Uploads & Scheduler
 app.include_router(data_sources_router)              # /api/data-sources
+app.include_router(scheduler_router)                 # /api/scheduler
 app.include_router(uploads_router)                   # /api/uploads
 app.include_router(validation_router)                # /api/validation
 
-# Scheduler
-app.include_router(scheduler_router)                 # /api/scheduler
 
-# Data Integration (Additional endpoints)
-app.include_router(data_integration_router)          # /api/data-integration
 
 
 # Data Processing Pipeline
@@ -202,7 +193,6 @@ app.include_router(training_jobs_router)             # /api/training
 app.include_router(forecast_engine_router)           # /api/forecast
 app.include_router(models_router)                    # /api/forecast/models
 app.include_router(forecast_jobs_router)             # /api/forecast/jobs
-app.include_router(training_config_router)           # /api/training/configurations
 
 # Recommendations
 app.include_router(recommendation_router)            # /api/recommendations

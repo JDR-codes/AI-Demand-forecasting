@@ -17,13 +17,13 @@ class ProcessingJobStatus(str, enum.Enum):
 
 
 class ProcessingJobStep(str, enum.Enum):
-    LOAD_INPUTS = "load_inputs"
-    MERGE_SEPARATE = "merge_separate"
-    DEDUPLICATE = "deduplicate"
-    VALIDATION = "validation"
+    DATA_INGESTION = "data_ingestion"
+    SCHEMA_VALIDATION = "schema_validation"
+    MISSING_VALUE_IMPUTATION = "missing_value_imputation"
     OUTLIER_DETECTION = "outlier_detection"
+    NORMALIZATION_SCALING = "normalization_scaling"
     FEATURE_ENGINEERING = "feature_engineering"
-    SAVE_PROCESSED_DATA = "save_processed_data"
+    DATA_AGGREGATION = "data_aggregation"
     COMPLETE = "complete"
 
 
@@ -47,7 +47,7 @@ class ProcessingJob(Base):
     run_feature_engineering = Column(Boolean, default=True)
     
     status = Column(Enum(ProcessingJobStatus), default=ProcessingJobStatus.QUEUED)
-    current_step = Column(String(50), default=ProcessingJobStep.LOAD_INPUTS)
+    current_step = Column(String(50), default=ProcessingJobStep.DATA_INGESTION)
     progress_percentage = Column(Float, default=0.0)
     
     records_loaded = Column(Integer, default=0)

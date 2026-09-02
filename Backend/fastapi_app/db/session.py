@@ -334,13 +334,13 @@ def _assign_role_permissions(db, roles, permissions):
     # AI Engineer (AI Analyst): AI and forecasting focus
     ai_engineer_perms = (
         DASHBOARD_PERMS +
-        DATA_INTEGRATION_PERMS +  # Read data sources
-        DATA_PROCESSING_PERMS +    # Read processing
+        [permissions.get("data_sources:read")] +  # Read data sources
+        [permissions.get("processing:read")] +    # Read processing
         FORECASTING_PERMS +
         RECOMMENDATIONS_PERMS +
-        INVENTORY_PERMS +          # Read inventory
+        [permissions.get("inventory:read")] +     # Read inventory
         REPORTS_PERMS +
-        ALERTS_PERMS               # Read alerts
+        [permissions.get("alerts:read")]          # Read alerts
     )
     ai_engineer_perms = [p for p in ai_engineer_perms if p is not None]
     

@@ -62,6 +62,7 @@ class DataSource(Base):
     health = Column(String(50), default="unknown", nullable=False)
     sync_frequency = Column(String(50), default="manual", nullable=False)
     last_sync = Column(DateTime, nullable=True)
+    last_sync_watermark = Column(String(255), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     
     # Dashboard fields (denormalized)

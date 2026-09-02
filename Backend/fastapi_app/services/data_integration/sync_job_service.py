@@ -45,6 +45,60 @@ class SyncJobService:
     """Service for managing sync jobs."""
 
     @staticmethod
+    def _apply_watermark_filter(data: List[dict], last_watermark: str) -> tuple[List[dict], Optional[str]]:
+        """Filter records by watermark and return filtered records along with the new watermark value."""
+        if not data:
+            return data, None
+            
+        # Common timestamp columns in datasets
+        possible_cols = ['updated_at', 'last_updated', 'date', 'created_at', 'timestamp']
+        first_row = data[0]
+        time_col = None
+        for col in possible_cols:
+            if col in first_row:
+                time_col = col
+                break
+                
+        if not time_col:
+            # No timestamp column found, cannot perform watermark filtering
+            return data, None
+            
+        # Parse last watermark threshold
+        try:
+            watermark_dt = datetime.fromisoformat(last_watermark.replace('Z', '').split('+')[0])
+        except Exception:
+            # If watermark format is invalid, return all data
+            return data, None
+            
+        filtered_data = []
+        new_watermark_dt = watermark_dt
+        
+        for row in data:
+            val = row.get(time_col)
+            if val:
+                try:
+                    if isinstance(val, str):
+                        row_dt = datetime.fromisoformat(val.replace('Z', '').split('+')[0])
+                    elif isinstance(val, datetime):
+                        row_dt = val
+                    else:
+                        row_dt = None
+                        
+                    if row_dt:
+                        if row_dt > watermark_dt:
+                            filtered_data.append(row)
+                        # Track the absolute maximum timestamp in the batch
+                        if row_dt > new_watermark_dt:
+                            new_watermark_dt = row_dt
+                except Exception:
+                    # Fallback: if parsing of individual row fails, keep the row
+                    filtered_data.append(row)
+            else:
+                filtered_data.append(row)
+                
+        return filtered_data, new_watermark_dt.isoformat()
+
+    @staticmethod
     def create_job(
         db: Session,
         datasource_id: int,
@@ -101,9 +155,8 @@ class SyncJobService:
     @staticmethod
     def _check_cancelled(db: Session, job_id: str):
         """Check if job has been cancelled."""
-        db.expire_all()
-        current_job = SyncJobService.get_job(db, job_id)
-        if current_job and current_job.status == SyncJobStatus.CANCELLED:
+        status = db.query(SyncJob.status).filter(SyncJob.job_id == job_id).scalar()
+        if status == SyncJobStatus.CANCELLED:
             raise JobCancelledException("Job cancelled by user")
 
     @staticmethod
@@ -130,6 +183,7 @@ class SyncJobService:
         db.commit()
 
         try:
+            new_watermark = None
             # Step 1: Connecting
             SyncJobService._update_step(db, job.id, "connecting", "running")
             job.current_step = SyncJobStep.CONNECTING
@@ -157,8 +211,63 @@ class SyncJobService:
             if not data:
                 raise ValueError("No data retrieved from source")
 
+            # Apply watermark filtering if available
+            if ds.last_sync_watermark and ds.last_sync_watermark != "":
+                logger.info(f"Applying watermark filter using last watermark: {ds.last_sync_watermark}")
+                original_count = len(data)
+                data, new_watermark = SyncJobService._apply_watermark_filter(data, ds.last_sync_watermark)
+                logger.info(f"Watermark filter reduced rows from {original_count} to {len(data)}")
+            else:
+                # Full sync, calculate initial watermark for future runs
+                _, new_watermark = SyncJobService._apply_watermark_filter(data, "1970-01-01T00:00:00")
+                logger.info(f"Full sync completed. Calculated initial watermark: {new_watermark}")
+
             job.rows_total = len(data)
             db.commit()
+
+            if len(data) == 0:
+                logger.info("No new records to sync since last watermark.")
+                job.rows_processed = 0
+                job.status = SyncJobStatus.COMPLETED
+                job.progress_percentage = 100.0
+                job.completed_at = datetime.utcnow()
+                job.duration_seconds = (job.completed_at - job.started_at).total_seconds()
+                
+                # Update steps
+                SyncJobService._update_step(db, job.id, "downloading", "completed")
+                SyncJobService._update_step(db, job.id, "validating", "completed")
+                SyncJobService._update_step(db, job.id, "saving", "completed")
+                
+                # Update data source
+                ds.last_sync = datetime.utcnow()
+                ds.status = "success"
+                ds.health = "healthy"
+                db.commit()
+                
+                # Create SyncLog record
+                sync_log = SyncLog(
+                    datasource_id=ds.id,
+                    started_at=job.started_at,
+                    completed_at=job.completed_at,
+                    status="success",
+                    rows_processed=0,
+                    rows_failed=0,
+                    duration_seconds=job.duration_seconds,
+                    message=f"Data source '{ds.name}' synced successfully. 0 new records found (up-to-date).",
+                    triggered_by=job.triggered_by
+                )
+                db.add(sync_log)
+                db.commit()
+                
+                # Send final WebSocket status
+                manager.send_progress_update_sync(
+                    channel="sync",
+                    job_id=job.job_id,
+                    progress=100,
+                    step="Completed",
+                    status="completed"
+                )
+                return job
 
             SyncJobService._update_step(db, job.id, "downloading", "completed")
             SyncJobService._check_cancelled(db, job.job_id)
@@ -307,6 +416,10 @@ class SyncJobService:
 
             # Update data source
             ds.last_sync = datetime.utcnow()
+            # Only advance the watermark if the job finished successfully (COMPLETED status)
+            if job.status == SyncJobStatus.COMPLETED and new_watermark:
+                logger.info(f"Advancing data source watermark to: {new_watermark}")
+                ds.last_sync_watermark = new_watermark
 
             if sync_status == "success":
                 ds.status = "success"

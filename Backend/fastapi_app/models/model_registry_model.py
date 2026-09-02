@@ -75,6 +75,7 @@ class ModelRegistry(Base):
     training_history = relationship("TrainingHistory", back_populates="model_registry")
     forecast_jobs = relationship("ForecastJob", back_populates="model_registry")
     training_config = relationship("TrainingConfiguration", back_populates="model_registry")
+    forecast_config = relationship("ForecastConfiguration", back_populates="model_registry", uselist=False)
     
     # Indexes
     __table_args__ = (

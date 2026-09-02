@@ -3,7 +3,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
-from fastapi_app.core.dependencies import get_current_user, get_db
+from fastapi_app.core.dependencies import get_current_user, get_db, require_permission_dep
 from fastapi_app.models.auth_model import User
 from fastapi_app.models.alert_model import AlertSeverity, AlertCategory
 from fastapi_app.schemas.alert_schema import (
@@ -26,7 +26,7 @@ def get_alerts(
     skip: int = Query(0, ge=0),
     limit: int = Query(50, ge=1, le=200),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission_dep("alerts:read")),
 ):
     """List all alerts — filter by severity, category, is_read"""
     return AlertService.get_alerts(db, severity=severity, category=category, is_read=is_read, skip=skip, limit=limit)
@@ -36,7 +36,7 @@ def get_alerts(
 def create_alert(
     payload: AlertCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission_dep("alerts:write")),
 ):
     """Create a new alert"""
     return AlertService.create_alert(db, payload)
@@ -46,7 +46,7 @@ def create_alert(
 def mark_alert_read(
     alert_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission_dep("alerts:write")),
 ):
     """Mark a specific alert as read"""
     return AlertService.mark_as_read(db, alert_id)
@@ -56,7 +56,7 @@ def mark_alert_read(
 def delete_alert(
     alert_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission_dep("alerts:delete")),
 ):
     """Permanently delete an alert"""
     return AlertService.delete_alert(db, alert_id)

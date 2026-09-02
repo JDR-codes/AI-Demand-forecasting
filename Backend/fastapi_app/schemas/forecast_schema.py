@@ -131,6 +131,8 @@ class ForecastSummary(BaseModel):
 
 class TrainingJobCreate(BaseModel):
     model_type: str
+    model_registry_id: Optional[str] = None
+    upload_id: Optional[int] = None
     processing_job_id: Optional[str] = None
     configuration: Optional[Dict[str, Any]] = Field(default_factory=dict)
     epochs: Optional[int] = 20
@@ -332,3 +334,89 @@ class ForecastMetricsComparison(BaseModel):
     mae: float
     mape: float
     r2: float
+
+
+class DatasetOptionResponse(BaseModel):
+    id: int
+    name: str
+    created_at: datetime
+    record_count: Optional[int]
+    category: Optional[str]
+
+    class Config:
+        from_attributes = True
+
+
+class DatasetDimensionResponse(BaseModel):
+    categories: List[str]
+    regions: List[str]
+    warehouses: List[str]
+    skus: List[str]
+
+
+class PaginatedForecastTableResponse(BaseModel):
+    results: List[ForecastResultResponse]
+    total: int
+    limit: int
+    offset: int
+
+
+# ============= Retraining Configuration Schemas =============
+
+class TrainingConfigurationResponse(BaseModel):
+    id: int
+    model_registry_id: Optional[str]
+    forecast_horizon: int
+    seasonality: bool
+    validation_split: float
+    epochs: int
+    batch_size: int
+    learning_rate: float
+    default_dataset: Optional[str]
+    default_region: Optional[str]
+    default_sku: Optional[str]
+    default_warehouse: Optional[str]
+    frequency: str
+    cron_expression: Optional[str]
+    accuracy_threshold: float
+    minimum_records: int
+    enabled: bool
+    created_at: datetime
+    updated_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class TrainingConfigurationUpdate(BaseModel):
+    forecast_horizon: Optional[int] = None
+    seasonality: Optional[bool] = None
+    validation_split: Optional[float] = None
+    epochs: Optional[int] = None
+    batch_size: Optional[int] = None
+    learning_rate: Optional[float] = None
+    default_dataset: Optional[str] = None
+    default_region: Optional[str] = None
+    default_sku: Optional[str] = None
+    default_warehouse: Optional[str] = None
+    frequency: Optional[str] = None
+    cron_expression: Optional[str] = None
+    accuracy_threshold: Optional[float] = None
+    minimum_records: Optional[int] = None
+    enabled: Optional[bool] = None
+
+
+class RetrainingScheduleResponse(BaseModel):
+    scheduled_run: datetime
+    model_registry_id: str
+    model_name: str
+    model_type: str
+    accuracy_threshold: float
+    status: str
+
+    class Config:
+        from_attributes = True
+
+
+class OneShotScheduleRequest(BaseModel):
+    run_at: datetime

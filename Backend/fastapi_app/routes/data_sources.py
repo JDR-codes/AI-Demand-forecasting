@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from datetime import datetime
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from fastapi_app.core.dependencies import get_current_user
+from fastapi_app.core.dependencies import get_current_user, require_permission_dep
 from fastapi_app.db.session import get_db
 from fastapi_app.services.data_integration.data_source_service import (
     get_all_data_sources,
@@ -19,7 +19,6 @@ from fastapi_app.services.data_integration.data_source_service import (
     get_data_source_dashboard_metrics,
     get_data_source_logs,
 )
-from fastapi_app.schemas.data_source_dashboard_schema import DataSourceDashboardMetrics
 from fastapi_app.schemas.data_source_schema import (
     DataSourceCreate,
     DataSourceUpdate,
@@ -28,6 +27,7 @@ from fastapi_app.schemas.data_source_schema import (
     SyncScheduleCreate,
     SyncScheduleUpdate,
     SyncScheduleOut,
+    DataSourceDashboardMetrics,
 )
 from fastapi_app.services.scheduler.scheduler_service import scheduler
 from fastapi_app.models.auth_model import User
@@ -46,7 +46,7 @@ router = APIRouter(prefix="/api/data-sources", tags=["Data Sources"])
 @router.get("/dashboard", response_model=DataSourceDashboardMetrics)
 def get_data_source_dashboard(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission_dep("data_sources:read")),
 ):
     """Get dashboard metrics for data sources."""
     return get_data_source_dashboard_metrics(db)
@@ -59,7 +59,7 @@ def get_data_source_dashboard(
 def create_schedule_endpoint(
     payload: SyncScheduleCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission_dep("data_sources:write")),
 ):
     """Create a new sync schedule."""
     # Validate timezone
@@ -138,7 +138,7 @@ def create_schedule_endpoint(
 @router.get("/schedules", response_model=List[SyncScheduleOut])
 def list_schedules_endpoint(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission_dep("data_sources:read")),
 ):
     """List all sync schedules."""
     schedules = db.query(SyncSchedule).order_by(SyncSchedule.created_at.desc()).all()
@@ -149,7 +149,7 @@ def list_schedules_endpoint(
 def get_schedule_endpoint(
     schedule_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission_dep("data_sources:read")),
 ):
     """Get a specific sync schedule."""
     schedule = db.query(SyncSchedule).filter(SyncSchedule.id == schedule_id).first()
@@ -163,7 +163,7 @@ def update_schedule_endpoint(
     schedule_id: int,
     payload: SyncScheduleUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission_dep("data_sources:write")),
 ):
     """Update a sync schedule."""
     schedule = db.query(SyncSchedule).filter(SyncSchedule.id == schedule_id).first()
@@ -245,7 +245,7 @@ def update_schedule_endpoint(
 def delete_schedule_endpoint(
     schedule_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission_dep("data_sources:write")),
 ):
     """Delete a sync schedule."""
     schedule = db.query(SyncSchedule).filter(SyncSchedule.id == schedule_id).first()
@@ -265,7 +265,7 @@ def delete_schedule_endpoint(
 def toggle_schedule_endpoint(
     schedule_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission_dep("data_sources:write")),
 ):
     """Toggle a schedule's active status."""
     schedule = db.query(SyncSchedule).filter(SyncSchedule.id == schedule_id).first()
@@ -295,7 +295,7 @@ def toggle_schedule_endpoint(
 @router.get("/", response_model=List[DataSourceOut])
 def list_data_sources(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission_dep("data_sources:read")),
 ):
     return get_all_data_sources(db)
 
@@ -303,7 +303,7 @@ def list_data_sources(
 @router.get("/lookup", response_model=List[DataSourceLookup])
 def lookup_data_sources(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission_dep("data_sources:read")),
 ):
     """Retrieve lightweight public metadata for data source picker dropdowns."""
     return get_all_data_sources(db)
@@ -313,7 +313,7 @@ def lookup_data_sources(
 def create_data_source_endpoint(
     payload: DataSourceCreate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission_dep("data_sources:write")),
 ):
     data = payload.dict()
     data["created_by"] = current_user.id
@@ -324,7 +324,7 @@ def create_data_source_endpoint(
 def get_data_source_endpoint(
     data_source_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission_dep("data_sources:read")),
 ):
     ds = get_data_source(db, data_source_id)
     if not ds:
@@ -337,7 +337,7 @@ def update_data_source_endpoint(
     data_source_id: int,
     payload: DataSourceUpdate,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission_dep("data_sources:write")),
 ):
     ds = update_data_source(db, data_source_id, payload.dict())
     if not ds:
@@ -349,7 +349,7 @@ def update_data_source_endpoint(
 def delete_data_source_endpoint(
     data_source_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission_dep("data_sources:delete")),
 ):
     ds = get_data_source(db, data_source_id)
     if not ds:
@@ -393,7 +393,7 @@ def delete_data_source_endpoint(
 def test_connection_endpoint(
     data_source_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission_dep("data_sources:write")),
 ):
     """Test connection for a data source."""
     ds = get_data_source(db, data_source_id)
@@ -423,7 +423,7 @@ def test_connection_endpoint(
 def sync_data_source_endpoint(
     data_source_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission_dep("data_sources:write")),
 ):
     """Sync a data source."""
     ds = get_data_source(db, data_source_id)
@@ -446,7 +446,7 @@ def sync_data_source_endpoint(
 @router.post("/sync-all")
 def sync_all_data_sources_endpoint(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission_dep("data_sources:write")),
 ):
     """Sync all enabled data sources."""
     sources = (
@@ -489,7 +489,7 @@ def sync_all_data_sources_endpoint(
 def data_source_health_endpoint(
     data_source_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission_dep("data_sources:read")),
 ):
     health = get_data_source_health(db, data_source_id)
     if not health:
@@ -502,7 +502,7 @@ def data_source_logs_endpoint(
     data_source_id: int,
     limit: int = Query(20, ge=1, le=100),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission_dep("data_sources:read")),
 ):
     """Get logs for a data source."""
     logs = get_data_source_logs(db, data_source_id, limit)

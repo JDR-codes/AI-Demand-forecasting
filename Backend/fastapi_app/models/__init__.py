@@ -89,6 +89,7 @@ from fastapi_app.models.training_job_model import (
     TrainingStep
 )
 from fastapi_app.models.training_configuration_model import TrainingConfiguration
+from fastapi_app.models.forecast_configuration_model import ForecastConfiguration
 
 # ============================================================================
 # RECOMMENDATION MODELS
@@ -217,6 +218,7 @@ __all__ = [
     'TrainingStatus',
     'TrainingStep',
     'TrainingConfiguration',
+    'ForecastConfiguration',
     
     # Recommendation
     'RecommendationResult',

@@ -33,14 +33,12 @@ from fastapi_app.services.background.task_manager import TaskManager
 import logging
 logger = logging.getLogger(__name__)
 
-# Step definitions matching Figma UI
 FORECAST_STEPS = [
-    (1, ForecastJobStep.LOADING_DATA, "Loading Dataset"),
-    (2, ForecastJobStep.VALIDATING_DATA, "Validating Dataset"),
-    (3, ForecastJobStep.LOADING_MODEL, "Loading Model"),
-    (4, ForecastJobStep.RUNNING_MODEL, "Running Model"),
-    (5, ForecastJobStep.GENERATING_OUTPUT, "Generating Output"),
-    (6, ForecastJobStep.SAVING_RESULTS, "Saving Results"),
+    (1, ForecastJobStep.FETCHING_DATA, "Fetching processed data"),
+    (2, ForecastJobStep.LOADING_CONFIG, "Loading model configuration"),
+    (3, ForecastJobStep.RUNNING_MODEL, "Running model"),
+    (4, ForecastJobStep.GENERATING_OUTPUT, "Generating forecast output"),
+    (5, ForecastJobStep.SAVING_RESULTS, "Saving forecast results"),
 ]
 
 
@@ -164,30 +162,26 @@ class ForecastExecutionService:
                 # Execute step
                 step_start = time.time()
                 
-                if step_enum == ForecastJobStep.LOADING_DATA:
-                    job.current_step_message = "Loading dataset..."
+                if step_enum == ForecastJobStep.FETCHING_DATA:
+                    job.current_step_message = "Fetching processed dataset..."
                     db.commit()
                     await ForecastExecutionService._step_loading_data(db, job, series)
-                    
-                elif step_enum == ForecastJobStep.VALIDATING_DATA:
-                    job.current_step_message = "Validating data quality..."
-                    db.commit()
                     series = await ForecastExecutionService._step_validate_data(db, job, series)
                     
-                elif step_enum == ForecastJobStep.LOADING_MODEL:
-                    job.current_step_message = "Loading model from registry..."
+                elif step_enum == ForecastJobStep.LOADING_CONFIG:
+                    job.current_step_message = "Loading model configuration..."
                     db.commit()
                     model, model_type = await ForecastExecutionService._step_load_model(db, job)
                     
                 elif step_enum == ForecastJobStep.RUNNING_MODEL:
-                    job.current_step_message = f"Running {model_type.upper()} model..."
+                    job.current_step_message = "Running model inference..."
                     db.commit()
                     forecast_values = await ForecastExecutionService._step_run_model(
                         db, job, model, model_type, series
                     )
                     
                 elif step_enum == ForecastJobStep.GENERATING_OUTPUT:
-                    job.current_step_message = "Generating confidence intervals..."
+                    job.current_step_message = "Generating forecast outputs..."
                     db.commit()
                     forecast_values = await ForecastExecutionService._step_generate_output(
                         db, job, forecast_values
@@ -241,7 +235,7 @@ class ForecastExecutionService:
                 if job.metrics:
                     metric_history = ForecastMetricHistory(
                         model_id=job.model_registry_id,
-                        model_type=job.metrics.get("model_type", "unknown"),
+                        model_type=job.metrics.get("model_type", "unknown").lower(),
                         date=datetime.utcnow(),
                         accuracy=job.metrics.get("accuracy"),
                         rmse=job.metrics.get("rmse"),
@@ -331,87 +325,58 @@ class ForecastExecutionService:
         return step
     
     @staticmethod
-    def _get_series(db: Session, job: ForecastJob) -> Optional[pd.Series]:
-        """Get time series data from upload or default dataset with SKU filtering."""
-        from fastapi_app.models.upload_model import Upload
-        from fastapi_app.models.raw_data_model import RawSales
+    def _get_series(db: Session, job: ForecastJob) -> pd.Series:
+        """Get time series data strictly from a completed ProcessedDataset with SKU filtering."""
+        import os
+        
+        processed_path = None
         
         # Try to get from explicit processing_job_id first
         if job.processing_job_id:
-            try:
-                from fastapi_app.models.processing_job_model import ProcessedDataset, ProcessingJob
-                import os
+            from fastapi_app.models.processing_job_model import ProcessedDataset, ProcessingJob
+            query = db.query(ProcessedDataset).join(
+                ProcessingJob, ProcessedDataset.processing_job_id == ProcessingJob.id
+            )
+            if str(job.processing_job_id).isdigit():
+                query = query.filter(ProcessingJob.id == int(job.processing_job_id))
+            else:
+                query = query.filter(ProcessingJob.job_id == str(job.processing_job_id))
                 
-                query = db.query(ProcessedDataset).join(
-                    ProcessingJob, ProcessedDataset.processing_job_id == ProcessingJob.id
-                )
-                if str(job.processing_job_id).isdigit():
-                    query = query.filter(ProcessingJob.id == int(job.processing_job_id))
-                else:
-                    query = query.filter(ProcessingJob.job_id == str(job.processing_job_id))
-                    
-                processed_ds = query.filter(ProcessingJob.status == "completed").order_by(ProcessedDataset.created_at.desc()).first()
-                if processed_ds and processed_ds.file_path and os.path.exists(processed_ds.file_path):
-                    logger.info(f"Using processed dataset from job {job.processing_job_id} for forecasting: {processed_ds.file_path}")
-                    series = prepare_series(path=processed_ds.file_path)
-                    return ForecastExecutionService._filter_series(series, job)
-            except Exception as e:
-                logger.warning(f"Could not load from processing_job_id: {str(e)}")
+            processed_ds = query.filter(ProcessingJob.status == "completed").order_by(ProcessedDataset.created_at.desc()).first()
+            if processed_ds and processed_ds.file_path and os.path.exists(processed_ds.file_path):
+                processed_path = processed_ds.file_path
+                logger.info(f"Using processed dataset from job {job.processing_job_id}: {processed_path}")
+            else:
+                raise ValueError(f"No completed processed dataset found for processing job {job.processing_job_id}")
 
-        # Try to get from upload first
-        if job.upload_id:
-            upload = db.query(Upload).filter(Upload.id == job.upload_id).first()
-            if upload and upload.file_path:
-                try:
-                    # Check if there is a completed ProcessedDataset version of this upload
-                    from fastapi_app.models.processing_job_model import ProcessedDataset, ProcessingJob
-                    from fastapi_app.models.processing_job_input_model import ProcessingJobInput
-                    import os
-                    
-                    processed_ds = db.query(ProcessedDataset).join(
-                        ProcessingJob, ProcessedDataset.processing_job_id == ProcessingJob.id
-                    ).join(
-                        ProcessingJobInput, ProcessingJobInput.processing_job_id == ProcessingJob.id
-                    ).filter(
-                        ProcessingJobInput.upload_id == job.upload_id,
-                        ProcessingJob.status == "completed"
-                    ).order_by(ProcessedDataset.created_at.desc()).first()
-                    
-                    path_to_load = upload.file_path
-                    if processed_ds and processed_ds.file_path and os.path.exists(processed_ds.file_path):
-                        path_to_load = processed_ds.file_path
-                        logger.info(f"Using processed dataset for forecasting: {path_to_load}")
-                    
-                    series = prepare_series(path=path_to_load)
-                    return ForecastExecutionService._filter_series(series, job)
-                except Exception as e:
-                    logger.warning(f"Could not load from upload: {str(e)}")
-        
-        # Try from raw sales data
-        try:
-            query = db.query(RawSales).filter(RawSales.date != None, RawSales.demand != None)
-            if job.sku and job.sku != "default":
-                query = query.filter(RawSales.sku == job.sku)
+        # Try to get from upload ID next
+        elif job.upload_id:
+            from fastapi_app.models.processing_job_model import ProcessedDataset, ProcessingJob
+            from fastapi_app.models.processing_job_input_model import ProcessingJobInput
             
-            records = query.order_by(RawSales.date).all()
-            if records:
-                dates = [r.date for r in records]
-                values = [r.demand for r in records]
-                df = pd.DataFrame({'date': dates, 'demand': values})
-                df = df.set_index('date')
-                series = df['demand']
-                return series
-        except Exception as e:
-            logger.warning(f"Could not load from raw sales: {str(e)}")
+            processed_ds = db.query(ProcessedDataset).join(
+                ProcessingJob, ProcessedDataset.processing_job_id == ProcessingJob.id
+            ).join(
+                ProcessingJobInput, ProcessingJobInput.processing_job_id == ProcessingJob.id
+            ).filter(
+                ProcessingJobInput.upload_id == job.upload_id,
+                ProcessingJob.status == "completed"
+            ).order_by(ProcessedDataset.created_at.desc()).first()
+            
+            if processed_ds and processed_ds.file_path and os.path.exists(processed_ds.file_path):
+                processed_path = processed_ds.file_path
+                logger.info(f"Using processed dataset from upload {job.upload_id}: {processed_path}")
+            else:
+                raise ValueError(f"No completed processed dataset found for upload {job.upload_id}. Raw files are not permitted for forecasting.")
         
-        # Fallback to default dataset
-        try:
-            series = prepare_series(path=DEFAULT_DATASET_PATH)
-            return ForecastExecutionService._filter_series(series, job)
-        except Exception as e:
-            logger.warning(f"Could not load from default dataset: {str(e)}")
-        
-        return None
+        else:
+            raise ValueError("No valid processing_job_id or upload_id specified. Real production forecasts require a completed ProcessedDataset.")
+            
+        if not processed_path:
+            raise ValueError("Could not resolve a valid processed dataset path.")
+            
+        series = prepare_series(path=processed_path)
+        return ForecastExecutionService._filter_series(series, job)
     
     @staticmethod
     def _filter_series(series: pd.Series, job: ForecastJob) -> pd.Series:

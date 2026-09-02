@@ -16,9 +16,8 @@ class ForecastJobStatus(str, enum.Enum):
 
 
 class ForecastJobStep(str, enum.Enum):
-    LOADING_DATA = "loading_data"
-    LOADING_MODEL = "loading_model"
-    VALIDATING_DATA = "validating_data"
+    FETCHING_DATA = "fetching_data"
+    LOADING_CONFIG = "loading_config"
     RUNNING_MODEL = "running_model"
     GENERATING_OUTPUT = "generating_output"
     SAVING_RESULTS = "saving_results"

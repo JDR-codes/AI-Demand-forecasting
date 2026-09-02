@@ -35,13 +35,13 @@ from fastapi_app.core.config import DATA_DIR
 logger = logging.getLogger(__name__)
 
 PROCESSING_STEPS = [
-    ("load_inputs", "Load Inputs", "Load selected data sources and uploads"),
-    ("merge_separate", "Merge / Separate", "Merge or separate datasets based on configuration"),
-    ("deduplicate", "Deduplicate", "Remove duplicate rows from datasets"),
-    ("validation", "Validation", "Run schema validation and check constraints"),
+    ("data_ingestion", "Data Ingestion", "Load, merge, and deduplicate raw input datasets"),
+    ("schema_validation", "Schema Validation", "Validate dataset structure and data types"),
+    ("missing_value_imputation", "Missing Value Imputation", "Impute missing values using mode or median"),
     ("outlier_detection", "Outlier Detection", "Identify and process dataset outliers"),
+    ("normalization_scaling", "Normalization & Scaling", "Normalize and scale numerical features"),
     ("feature_engineering", "Feature Engineering", "Generate cyclical, lag, rolling and other features"),
-    ("save_processed_data", "Save Processed Data", "Persist the final processed datasets"),
+    ("data_aggregation", "Data Aggregation", "Group and aggregate data by configured dimensions and save final datasets"),
 ]
 
 
@@ -227,14 +227,14 @@ class ProcessingJobService:
                     db.refresh(job)
             
             # ---------------------------------------------------------
-            # Step 1: Load Inputs
+            # Step 1: Data Ingestion
             # ---------------------------------------------------------
             ProcessingJobService._update_step(db, job.id, 1, "running")
-            job.current_step = "load_inputs"
+            job.current_step = "data_ingestion"
             db.commit()
             if job.warning_message:
-                ProcessingLogService.log_warning(db, job.id, job.warning_message, "load_inputs")
-            ProcessingLogService.log_info(db, job.id, "Loading selected data sources and uploads", "load_inputs")
+                ProcessingLogService.log_warning(db, job.id, job.warning_message, "data_ingestion")
+            ProcessingLogService.log_info(db, job.id, "Loading selected data sources and uploads", "data_ingestion")
             step_start = time.time()
             
             for item in inputs:
@@ -255,11 +255,12 @@ class ProcessingJobService:
                             df = ProcessingInputLoader.load_data_source(source)
                     
                     if df is not None and not df.empty:
+                        df = ProcessingJobService._step_ingestion(db, job, df)
                         item.records_loaded = len(df)
                         item.records_processed = len(df)
                         item.status = "completed"
                         datasets[item.category].append((item.input_type, item.upload_id or item.data_source_id, df))
-                        ProcessingLogService.log_info(db, job.id, f"Loaded {len(df)} records from {item.input_type} (ID: {item.upload_id or item.data_source_id})", "load_inputs")
+                        ProcessingLogService.log_info(db, job.id, f"Loaded and standardized {len(df)} records from {item.input_type} (ID: {item.upload_id or item.data_source_id})", "data_ingestion")
                     else:
                         raise ValueError("No data returned or empty dataset")
                     item.completed_at = datetime.utcnow()
@@ -269,7 +270,7 @@ class ProcessingJobService:
                     item.error_message = str(load_err)
                     item.completed_at = datetime.utcnow()
                     db.commit()
-                    ProcessingLogService.log_error(db, job.id, f"Failed to load {item.input_type} (ID: {item.upload_id or item.data_source_id}): {str(load_err)}", "load_inputs")
+                    ProcessingLogService.log_error(db, job.id, f"Failed to load {item.input_type} (ID: {item.upload_id or item.data_source_id}): {str(load_err)}", "data_ingestion")
             
             total_records_loaded = sum(item.records_loaded or 0 for item in inputs if item.status == "completed")
             job.records_loaded = total_records_loaded
@@ -278,37 +279,7 @@ class ProcessingJobService:
             if total_records_loaded == 0:
                 raise ValueError("No datasets loaded successfully for processing")
             
-            step_duration = time.time() - step_start
-            ProcessingJobService._update_step(db, job.id, 1, "completed", step_duration)
-            ProcessingLogService.log_info(db, job.id, f"Completed Load Inputs step in {step_duration:.2f}s", "load_inputs")
-            
-            progress = (1 / total_steps) * 100
-            job.progress_percentage = progress
-            
-            elapsed = time.time() - start_time
-            job.eta_seconds = (elapsed / 1) * (total_steps - 1)
-            db.commit()
-            
-            manager.send_progress_update_sync(
-                channel="processing",
-                job_id=job.job_id,
-                progress=progress,
-                step="Load Inputs",
-                status="running",
-                remaining_time=int(job.eta_seconds),
-                metadata={"warning_message": job.warning_message} if job.warning_message else None
-            )
-
-            # ---------------------------------------------------------
-            # Step 2: Merge / Separate
-            # ---------------------------------------------------------
-            check_state("merge_separate")
-            ProcessingJobService._update_step(db, job.id, 2, "running")
-            job.current_step = "merge_separate"
-            db.commit()
-            ProcessingLogService.log_info(db, job.id, f"Merging or separating datasets with strategy: {job.merge_strategy}", "merge_separate")
-            step_start = time.time()
-            
+            ProcessingLogService.log_info(db, job.id, f"Merging or separating datasets with strategy: {job.merge_strategy}", "data_ingestion")
             category_dfs = {}
             if job.merge_strategy == "append":
                 for cat, df_tuples in datasets.items():
@@ -316,44 +287,15 @@ class ProcessingJobService:
                         dfs_to_concat = [t[2] for t in df_tuples]
                         combined = pd.concat(dfs_to_concat, ignore_index=True)
                         category_dfs[cat] = combined
-                        ProcessingLogService.log_info(db, job.id, f"Merged {len(df_tuples)} sources for category '{cat}' into a single dataset with {len(combined)} records", "merge_separate")
+                        ProcessingLogService.log_info(db, job.id, f"Merged {len(df_tuples)} sources for category '{cat}' into a single dataset with {len(combined)} records", "data_ingestion")
             else:  # separate
                 for cat, df_tuples in datasets.items():
                     for input_type, source_id, df in df_tuples:
                         key = f"{cat}_source_{input_type}_{source_id}"
                         category_dfs[key] = df
-                        ProcessingLogService.log_info(db, job.id, f"Kept dataset separate for category '{cat}', source: {input_type} (ID: {source_id}) with {len(df)} records", "merge_separate")
+                        ProcessingLogService.log_info(db, job.id, f"Kept dataset separate for category '{cat}', source: {input_type} (ID: {source_id}) with {len(df)} records", "data_ingestion")
             
-            step_duration = time.time() - step_start
-            ProcessingJobService._update_step(db, job.id, 2, "completed", step_duration)
-            ProcessingLogService.log_info(db, job.id, f"Completed Merge / Separate step in {step_duration:.2f}s", "merge_separate")
-            
-            progress = (2 / total_steps) * 100
-            job.progress_percentage = progress
-            
-            elapsed = time.time() - start_time
-            job.eta_seconds = (elapsed / 2) * (total_steps - 2)
-            db.commit()
-            
-            manager.send_progress_update_sync(
-                channel="processing",
-                job_id=job.job_id,
-                progress=progress,
-                step="Merge / Separate",
-                status="running",
-                remaining_time=int(job.eta_seconds)
-            )
-
-            # ---------------------------------------------------------
-            # Step 3: Deduplicate
-            # ---------------------------------------------------------
-            check_state("deduplicate")
-            ProcessingJobService._update_step(db, job.id, 3, "running")
-            job.current_step = "deduplicate"
-            db.commit()
-            ProcessingLogService.log_info(db, job.id, f"Running deduplication. Configuration deduplicate={job.deduplicate}", "deduplicate")
-            step_start = time.time()
-            
+            ProcessingLogService.log_info(db, job.id, f"Running deduplication. Configuration deduplicate={job.deduplicate}", "data_ingestion")
             if job.deduplicate:
                 for key in list(category_dfs.keys()):
                     df = category_dfs[key]
@@ -362,47 +304,43 @@ class ProcessingJobService:
                     after_count = len(df)
                     removed = before_count - after_count
                     category_dfs[key] = df
-                    ProcessingLogService.log_info(db, job.id, f"Deduplicated dataset '{key}': removed {removed} duplicate rows", "deduplicate")
-            else:
-                ProcessingLogService.log_info(db, job.id, "Deduplication skipped per config", "deduplicate")
+                    ProcessingLogService.log_info(db, job.id, f"Deduplicated dataset '{key}': removed {removed} duplicate rows", "data_ingestion")
             
             step_duration = time.time() - step_start
-            ProcessingJobService._update_step(db, job.id, 3, "completed", step_duration)
-            ProcessingLogService.log_info(db, job.id, f"Completed Deduplicate step in {step_duration:.2f}s", "deduplicate")
+            ProcessingJobService._update_step(db, job.id, 1, "completed", step_duration)
+            ProcessingLogService.log_info(db, job.id, f"Completed Data Ingestion step in {step_duration:.2f}s", "data_ingestion")
             
-            progress = (3 / total_steps) * 100
+            progress = (1 / total_steps) * 100
             job.progress_percentage = progress
-            
             elapsed = time.time() - start_time
-            job.eta_seconds = (elapsed / 3) * (total_steps - 3)
+            job.eta_seconds = (elapsed / 1) * (total_steps - 1)
             db.commit()
             
             manager.send_progress_update_sync(
                 channel="processing",
                 job_id=job.job_id,
                 progress=progress,
-                step="Deduplicate",
+                step="Data Ingestion",
                 status="running",
-                remaining_time=int(job.eta_seconds)
+                remaining_time=int(job.eta_seconds),
+                metadata={"warning_message": job.warning_message} if job.warning_message else None
             )
 
             # ---------------------------------------------------------
-            # Step 4: Validation
+            # Step 2: Schema Validation
             # ---------------------------------------------------------
-            check_state("validation")
-            ProcessingJobService._update_step(db, job.id, 4, "running")
-            job.current_step = "validation"
+            check_state("schema_validation")
+            ProcessingJobService._update_step(db, job.id, 2, "running")
+            job.current_step = "schema_validation"
             db.commit()
             
             step_start = time.time()
             if job.run_validation:
-                ProcessingLogService.log_info(db, job.id, "Running schema and data validation", "validation")
+                ProcessingLogService.log_info(db, job.id, "Running schema and data validation", "schema_validation")
                 from fastapi_app.services.validation.validation_service import ValidationEngine
                 for key in list(category_dfs.keys()):
                     df = category_dfs[key]
                     category = key.split("_")[0]
-                    # Apply synonym standardization first
-                    df = ProcessingJobService._step_ingestion(db, job, df)
                     df = ValidationEngine.standardize_dataframe(df, category)
                     is_valid, errors, stats = ValidationEngine.validate_dataframe(df, category, f"processing_job:{job.job_id}")
                     
@@ -424,22 +362,90 @@ class ProcessingJobService:
                             )
                             db.add(validation_err)
                         db.commit()
-                        ProcessingLogService.log_warning(db, job.id, f"Found {len(errors)} validation errors in dataset '{key}'", "validation")
+                        ProcessingLogService.log_warning(db, job.id, f"Found {len(errors)} validation errors in dataset '{key}'", "schema_validation")
                     else:
-                        ProcessingLogService.log_info(db, job.id, f"Dataset '{key}' validated successfully with 0 errors", "validation")
+                        ProcessingLogService.log_info(db, job.id, f"Dataset '{key}' validated successfully with 0 errors", "schema_validation")
                     category_dfs[key] = df
+                step_duration = time.time() - step_start
+                ProcessingJobService._update_step(db, job.id, 2, "completed", step_duration)
+                ProcessingLogService.log_info(db, job.id, f"Completed Schema Validation step in {step_duration:.2f}s", "schema_validation")
             else:
-                ProcessingJobService._update_step(db, job.id, 4, "skipped")
-                ProcessingLogService.log_info(db, job.id, "Validation skipped per config", "validation")
+                ProcessingJobService._update_step(db, job.id, 2, "skipped")
+                ProcessingLogService.log_info(db, job.id, "Schema Validation skipped per config", "schema_validation")
+                
+            progress = (2 / total_steps) * 100
+            job.progress_percentage = progress
+            elapsed = time.time() - start_time
+            job.eta_seconds = (elapsed / 2) * (total_steps - 2)
+            db.commit()
+            
+            manager.send_progress_update_sync(
+                channel="processing",
+                job_id=job.job_id,
+                progress=progress,
+                step="Schema Validation",
+                status="running",
+                remaining_time=int(job.eta_seconds)
+            )
+
+            # ---------------------------------------------------------
+            # Step 3: Missing Value Imputation
+            # ---------------------------------------------------------
+            check_state("missing_value_imputation")
+            ProcessingJobService._update_step(db, job.id, 3, "running")
+            job.current_step = "missing_value_imputation"
+            db.commit()
+            
+            step_start = time.time()
+            ProcessingLogService.log_info(db, job.id, "Running missing value imputation", "missing_value_imputation")
+            for key in list(category_dfs.keys()):
+                df = category_dfs[key]
+                df = ProcessingJobService._step_missing_imputation(db, job, df)
+                category_dfs[key] = df
                 
             step_duration = time.time() - step_start
-            if job.run_validation:
-                ProcessingJobService._update_step(db, job.id, 4, "completed", step_duration)
-                ProcessingLogService.log_info(db, job.id, f"Completed Validation step in {step_duration:.2f}s", "validation")
+            ProcessingJobService._update_step(db, job.id, 3, "completed", step_duration)
+            ProcessingLogService.log_info(db, job.id, f"Completed Missing Value Imputation step in {step_duration:.2f}s", "missing_value_imputation")
             
+            progress = (3 / total_steps) * 100
+            job.progress_percentage = progress
+            elapsed = time.time() - start_time
+            job.eta_seconds = (elapsed / 3) * (total_steps - 3)
+            db.commit()
+            
+            manager.send_progress_update_sync(
+                channel="processing",
+                job_id=job.job_id,
+                progress=progress,
+                step="Missing Value Imputation",
+                status="running",
+                remaining_time=int(job.eta_seconds)
+            )
+
+            # ---------------------------------------------------------
+            # Step 4: Outlier Detection
+            # ---------------------------------------------------------
+            check_state("outlier_detection")
+            ProcessingJobService._update_step(db, job.id, 4, "running")
+            job.current_step = "outlier_detection"
+            db.commit()
+            
+            step_start = time.time()
+            if job.run_outlier_detection:
+                ProcessingLogService.log_info(db, job.id, "Running outlier detection", "outlier_detection")
+                for key in list(category_dfs.keys()):
+                    df = category_dfs[key]
+                    df = ProcessingJobService._step_outlier_detection(db, job, df)
+                    category_dfs[key] = df
+                step_duration = time.time() - step_start
+                ProcessingJobService._update_step(db, job.id, 4, "completed", step_duration)
+                ProcessingLogService.log_info(db, job.id, f"Completed Outlier Detection step in {step_duration:.2f}s", "outlier_detection")
+            else:
+                ProcessingJobService._update_step(db, job.id, 4, "skipped")
+                ProcessingLogService.log_info(db, job.id, "Outlier detection skipped per config", "outlier_detection")
+                
             progress = (4 / total_steps) * 100
             job.progress_percentage = progress
-            
             elapsed = time.time() - start_time
             job.eta_seconds = (elapsed / 4) * (total_steps - 4)
             db.commit()
@@ -448,39 +454,32 @@ class ProcessingJobService:
                 channel="processing",
                 job_id=job.job_id,
                 progress=progress,
-                step="Validation",
+                step="Outlier Detection",
                 status="running",
                 remaining_time=int(job.eta_seconds)
             )
 
             # ---------------------------------------------------------
-            # Step 5: Outlier Detection
+            # Step 5: Normalization & Scaling
             # ---------------------------------------------------------
-            check_state("outlier_detection")
+            check_state("normalization_scaling")
             ProcessingJobService._update_step(db, job.id, 5, "running")
-            job.current_step = "outlier_detection"
+            job.current_step = "normalization_scaling"
             db.commit()
             
             step_start = time.time()
-            if job.run_outlier_detection:
-                ProcessingLogService.log_info(db, job.id, "Running missing value imputation and outlier detection", "outlier_detection")
-                for key in list(category_dfs.keys()):
-                    df = category_dfs[key]
-                    df = ProcessingJobService._step_missing_imputation(db, job, df)
-                    df = ProcessingJobService._step_outlier_detection(db, job, df)
-                    category_dfs[key] = df
-            else:
-                ProcessingJobService._update_step(db, job.id, 5, "skipped")
-                ProcessingLogService.log_info(db, job.id, "Outlier detection skipped per config", "outlier_detection")
+            ProcessingLogService.log_info(db, job.id, "Running normalization and scaling", "normalization_scaling")
+            for key in list(category_dfs.keys()):
+                df = category_dfs[key]
+                df = ProcessingJobService._step_normalization(db, job, df)
+                category_dfs[key] = df
                 
             step_duration = time.time() - step_start
-            if job.run_outlier_detection:
-                ProcessingJobService._update_step(db, job.id, 5, "completed", step_duration)
-                ProcessingLogService.log_info(db, job.id, f"Completed Outlier Detection step in {step_duration:.2f}s", "outlier_detection")
+            ProcessingJobService._update_step(db, job.id, 5, "completed", step_duration)
+            ProcessingLogService.log_info(db, job.id, f"Completed Normalization & Scaling step in {step_duration:.2f}s", "normalization_scaling")
             
             progress = (5 / total_steps) * 100
             job.progress_percentage = progress
-            
             elapsed = time.time() - start_time
             job.eta_seconds = (elapsed / 5) * (total_steps - 5)
             db.commit()
@@ -489,7 +488,7 @@ class ProcessingJobService:
                 channel="processing",
                 job_id=job.job_id,
                 progress=progress,
-                step="Outlier Detection",
+                step="Normalization & Scaling",
                 status="running",
                 remaining_time=int(job.eta_seconds)
             )
@@ -504,26 +503,22 @@ class ProcessingJobService:
             
             step_start = time.time()
             if job.run_feature_engineering:
-                ProcessingLogService.log_info(db, job.id, "Running normalization and feature generation", "feature_engineering")
+                ProcessingLogService.log_info(db, job.id, "Running feature generation", "feature_engineering")
                 for key in list(category_dfs.keys()):
                     df = category_dfs[key]
                     category = key.split("_")[0]
-                    df = ProcessingJobService._step_normalization(db, job, df)
                     if category == "sales":
                         df = ProcessingJobService._step_feature_engineering(db, job, df)
                     category_dfs[key] = df
+                step_duration = time.time() - step_start
+                ProcessingJobService._update_step(db, job.id, 6, "completed", step_duration)
+                ProcessingLogService.log_info(db, job.id, f"Completed Feature Engineering step in {step_duration:.2f}s", "feature_engineering")
             else:
                 ProcessingJobService._update_step(db, job.id, 6, "skipped")
                 ProcessingLogService.log_info(db, job.id, "Feature engineering skipped per config", "feature_engineering")
                 
-            step_duration = time.time() - step_start
-            if job.run_feature_engineering:
-                ProcessingJobService._update_step(db, job.id, 6, "completed", step_duration)
-                ProcessingLogService.log_info(db, job.id, f"Completed Feature Engineering step in {step_duration:.2f}s", "feature_engineering")
-            
             progress = (6 / total_steps) * 100
             job.progress_percentage = progress
-            
             elapsed = time.time() - start_time
             job.eta_seconds = (elapsed / 6) * (total_steps - 6)
             db.commit()
@@ -538,15 +533,20 @@ class ProcessingJobService:
             )
 
             # ---------------------------------------------------------
-            # Step 7: Save Processed Data
+            # Step 7: Data Aggregation
             # ---------------------------------------------------------
-            check_state("save_processed_data")
+            check_state("data_aggregation")
             ProcessingJobService._update_step(db, job.id, 7, "running")
-            job.current_step = "save_processed_data"
+            job.current_step = "data_aggregation"
             db.commit()
-            ProcessingLogService.log_info(db, job.id, "Persisting processed datasets", "save_processed_data")
-            step_start = time.time()
             
+            step_start = time.time()
+            ProcessingLogService.log_info(db, job.id, "Running data aggregation and saving datasets", "data_aggregation")
+            for key in list(category_dfs.keys()):
+                df = category_dfs[key]
+                df = ProcessingJobService._step_aggregation(db, job, df)
+                category_dfs[key] = df
+
             processed_dir = os.path.join(DATA_DIR, "processed", f"job_{job.job_id}")
             os.makedirs(processed_dir, exist_ok=True)
             
@@ -579,14 +579,14 @@ class ProcessingJobService:
                 db.commit()
                 
                 total_records_processed += len(df)
-                ProcessingLogService.log_info(db, job.id, f"Persisted dataset '{key}' ({len(df)} records) to {file_path}", "save_processed_data")
+                ProcessingLogService.log_info(db, job.id, f"Persisted dataset '{key}' ({len(df)} records) to {file_path}", "data_aggregation")
             
             job.records_processed = total_records_processed
             db.commit()
             
             step_duration = time.time() - step_start
             ProcessingJobService._update_step(db, job.id, 7, "completed", step_duration)
-            ProcessingLogService.log_info(db, job.id, f"Completed Save Processed Data step in {step_duration:.2f}s", "save_processed_data")
+            ProcessingLogService.log_info(db, job.id, f"Completed Data Aggregation step in {step_duration:.2f}s", "data_aggregation")
 
             # Finalize parent job status
             failed_inputs = [x for x in inputs if x.status == "failed"]
@@ -941,17 +941,46 @@ class ProcessingJobService:
     @staticmethod
     def _step_aggregation(db: Session, job: ProcessingJob, df: pd.DataFrame) -> pd.DataFrame:
         """Step 7: Data Aggregation."""
-        if all(col in df.columns for col in ['category', 'region', 'warehouse', 'date']):
-            df['date'] = pd.to_datetime(df['date'])
-            df['date'] = df['date'].dt.date
+        # Detect present grouping columns
+        possible_groups = ['category', 'region', 'warehouse', 'sku', 'date']
+        group_cols = [col for col in possible_groups if col in df.columns]
+        
+        if group_cols:
+            if 'date' in df.columns:
+                try:
+                    df['date'] = pd.to_datetime(df['date'])
+                    df['date'] = df['date'].dt.date
+                except Exception:
+                    pass
             
-            aggregated = df.groupby(['category', 'region', 'warehouse', 'date']).agg({
-                'demand': 'sum' if 'demand' in df.columns else 'count',
-                'price': 'mean' if 'price' in df.columns else 'count'
-            }).reset_index()
+            # Aggregate numeric columns if present
+            agg_dict = {}
+            if 'demand' in df.columns:
+                agg_dict['demand'] = 'sum'
+            if 'stock' in df.columns:
+                agg_dict['stock'] = 'mean'
+            if 'price' in df.columns:
+                agg_dict['price'] = 'mean'
+            if 'revenue' in df.columns:
+                agg_dict['revenue'] = 'sum'
+            if 'units' in df.columns:
+                agg_dict['units'] = 'sum'
+                
+            # Fallback if no numeric columns found
+            if not agg_dict:
+                non_group_cols = [col for col in df.columns if col not in group_cols]
+                if non_group_cols:
+                    agg_dict[non_group_cols[0]] = 'count'
+                else:
+                    return df
             
-            ProcessingLogService.log_info(db, job.id, f"Aggregated to {len(aggregated)} records", "aggregation")
-            return aggregated
+            try:
+                aggregated = df.groupby(group_cols).agg(agg_dict).reset_index()
+                ProcessingLogService.log_info(db, job.id, f"Aggregated to {len(aggregated)} records using groups: {group_cols}", "aggregation")
+                return aggregated
+            except Exception as agg_err:
+                ProcessingLogService.log_warning(db, job.id, f"Aggregation failed: {str(agg_err)}. Returning unaggregated data.", "aggregation")
+                return df
         
         return df
     

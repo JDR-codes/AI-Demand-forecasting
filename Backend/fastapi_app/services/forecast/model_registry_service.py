@@ -189,3 +189,45 @@ class ModelRegistryService:
         if model_registry_id:
             query = query.filter(TrainingHistory.model_registry_id == model_registry_id)
         return query.order_by(desc(TrainingHistory.trained_at)).limit(limit).all()
+
+    @staticmethod
+    def toggle_favorite(db: Session, model_id: str) -> Optional[ModelRegistry]:
+        """Toggle favorite state of a model."""
+        model = ModelRegistryService.get_model(db, model_id)
+        if not model:
+            return None
+        model.is_favorite = not model.is_favorite
+        db.commit()
+        db.refresh(model)
+        return model
+
+    @staticmethod
+    def update_deployment(db: Session, model_id: str, status: str) -> Optional[ModelRegistry]:
+        """Update model deployment status (development, staging, production)."""
+        model = ModelRegistryService.get_model(db, model_id)
+        if not model:
+            return None
+        model.deployment_status = status
+        if status == "production":
+            model.production_version = model.version
+            model.production_deployed_at = datetime.utcnow()
+            # Demote any other model of the same type in production
+            db.query(ModelRegistry).filter(
+                ModelRegistry.id != model_id,
+                ModelRegistry.model_type == model.model_type,
+                ModelRegistry.deployment_status == "production"
+            ).update({"deployment_status": "staging"})
+        db.commit()
+        db.refresh(model)
+        return model
+
+    @staticmethod
+    def restore_model(db: Session, model_id: str) -> bool:
+        """Restore an archived model."""
+        model = ModelRegistryService.get_model(db, model_id)
+        if not model:
+            return False
+        model.is_active = True
+        model.status = "active"
+        db.commit()
+        return True

@@ -8,7 +8,7 @@ import logging
 import json
 import time
 
-from fastapi_app.schemas.data_source_dashboard_schema import DataSourceDashboardMetrics
+from fastapi_app.schemas.data_source_schema import DataSourceDashboardMetrics
 from fastapi_app.models.data_source_model import (
     DataSource,
     DataSourceType,

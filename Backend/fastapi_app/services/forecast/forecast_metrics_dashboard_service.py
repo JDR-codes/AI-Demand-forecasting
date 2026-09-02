@@ -77,8 +77,41 @@ class ForecastMetricsDashboardService:
         return comparisons
     
     @staticmethod
-    def get_best_model(db: Session) -> Optional[Dict[str, Any]]:
-        """Get the best performing model from real data."""
+    def get_best_model(db: Session, sku: Optional[str] = None) -> Optional[Dict[str, Any]]:
+        """Get the best performing model from real data (optionally filtered by SKU)."""
+        from fastapi_app.models.forecast_job_model import ForecastJob, ForecastJobStatus
+        
+        if sku and sku != "default":
+            # Query completed forecast jobs for this SKU that have model registry links
+            jobs = db.query(ForecastJob).filter(
+                ForecastJob.sku == sku,
+                ForecastJob.status == ForecastJobStatus.COMPLETED,
+                ForecastJob.model_registry_id.isnot(None)
+            ).all()
+            
+            if jobs:
+                # Find the job with the highest accuracy
+                best_job = max(
+                    [j for j in jobs if j.metrics and "accuracy" in j.metrics],
+                    key=lambda j: j.metrics.get("accuracy", 0.0),
+                    default=None
+                )
+                if best_job:
+                    model = db.query(ModelRegistry).filter(ModelRegistry.id == best_job.model_registry_id).first()
+                    if model:
+                        return {
+                            "id": model.id,
+                            "name": model.name,
+                            "model_type": model.model_type,
+                            "accuracy": best_job.metrics.get("accuracy"),
+                            "rmse": best_job.metrics.get("rmse"),
+                            "mae": best_job.metrics.get("mae"),
+                            "mape": best_job.metrics.get("mape"),
+                            "r2": best_job.metrics.get("r2"),
+                            "last_trained": model.last_trained.isoformat() if model.last_trained else None
+                        }
+                        
+        # Fallback/Default: Get active model registry entry with highest overall accuracy
         model = db.query(ModelRegistry).filter(
             ModelRegistry.is_active == True,
             ModelRegistry.best_accuracy.isnot(None)

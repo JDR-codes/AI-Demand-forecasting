@@ -3,7 +3,7 @@ from fastapi.responses import Response
 from typing import List, Optional
 from sqlalchemy.orm import Session
 
-from fastapi_app.core.dependencies import get_current_user
+from fastapi_app.core.dependencies import get_current_user, require_permission_dep
 from fastapi_app.db.session import get_db
 from fastapi_app.models.auth_model import User
 from fastapi_app.schemas.report_schema import (
@@ -25,7 +25,7 @@ def list_reports(
     skip: int = 0,
     limit: int = 50,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission_dep("reports:read")),
 ):
     """
     GET /api/v1/reports
@@ -39,7 +39,7 @@ def list_reports(
 def generate_report(
     payload: ReportGenerateRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission_dep("reports:generate")),
 ):
     """
     POST /api/reports/generate
@@ -80,7 +80,7 @@ def generate_report(
 def get_sku_performance(
     search: Optional[str] = None,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission_dep("reports:read")),
 ):
     """
     GET /api/reports/sku-performance
@@ -94,7 +94,7 @@ def get_sku_performance(
 def get_sku_details(
     sku: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission_dep("reports:read")),
 ):
     """
     GET /api/reports/sku-details/{sku}
@@ -113,7 +113,7 @@ def get_overview_metrics(
     category: Optional[str] = None,
     date_range: Optional[str] = None,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission_dep("reports:read")),
 ):
     """
     GET /api/reports/overview-metrics?region=West&category=Electronics&date_range=last_30_days
@@ -132,7 +132,7 @@ def get_overview_metrics(
 def get_report(
     report_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission_dep("reports:read")),
 ):
     """
     GET /api/v1/reports/{report_id}
@@ -150,7 +150,7 @@ def download_report(
     report_id: int,
     format: Optional[str] = None,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_permission_dep("reports:read")),
 ):
     """
     GET /api/v1/reports/{report_id}/download
